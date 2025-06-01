@@ -1,0 +1,175 @@
+/* static/css/dashboard_styles.css */
+
+body {
+    font-family: 'Roboto', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    background-color: #f4f7f6; /* Light grey background for the page */
+    color: #333;
+    line-height: 1.6;
+}
+
+/* --- Navigation Bar Styling --- */
+nav.navbar {
+    padding: 0.8rem 1.5rem;
+    color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: space-between; /* Aligns items to start and end */
+    align-items: center;
+}
+
+nav.navbar .nav-brand { /* For a potential logo/site name */
+    font-size: 1.5em;
+    font-weight: bold;
+    color: white;
+    text-decoration: none;
+}
+
+nav.navbar .nav-links a {
+    color: white;
+    margin-left: 20px;
+    text-decoration: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    transition: background-color 0.2s ease-in-out;
+}
+
+nav.navbar .nav-links a:hover,
+nav.navbar .nav-links a.active { /* Add 'active' class to current page link if needed */
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* User Dashboard Navbar Specific */
+nav.user-navbar {
+    background-color: #007bff; /* Cool Blue */
+}
+
+/* Driver Dashboard Navbar Specific */
+nav.driver-navbar {
+    background-color: #343a40; /* Dark Grey/Blue */
+}
+
+
+/* --- Main Content Area --- */
+.dashboard-content {
+    padding: 25px;
+    max-width: 1200px; /* Max width for content, centered */
+    margin: 0 auto; /* Centering the content block */
+}
+
+.dashboard-content h2, .dashboard-content h3, .dashboard_content h4 {
+    color: #333;
+    margin-top: 0;
+}
+
+.dashboard-content p {
+    margin-bottom: 1rem;
+}
+
+/* --- Map Styling --- */
+.map-wrapper-fullwidth {
+    width: 100%; /* Takes full width of its parent (.dashboard-content) */
+    margin-top: 20px;
+    margin-bottom: 25px;
+    background-color: #e9ecef; /* Light background for map area */
+    border: 1px solid #ced4da;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.05);
+}
+
+.map-container-inner {
+    width: 100%;
+    height: 500px; /* Or your preferred height */
+    border-radius: 7px; /* Inner radius to match wrapper if border is thick */
+    overflow: hidden; /* Ensures map tiles stay within rounded corners */
+}
+
+#map { /* The actual Leaflet map div */
+    width: 100%;
+    height: 100%;
+}
+
+/* --- Buttons and Interactive Elements --- */
+button, .button-style {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+}
+
+button:hover, .button-style:hover {
+    background-color: #0056b3;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+
+button:disabled, .button-style:disabled {
+    background-color: #c0c0c0;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* Specific button colors */
+button.btn-confirm, .button-style.btn-confirm { background-color: #28a745; } /* Green */
+button.btn-confirm:hover, .button-style.btn-confirm:hover { background-color: #1e7e34; }
+button.btn-cancel, .button-style.btn-cancel { background-color: #dc3545; } /* Red */
+button.btn-cancel:hover, .button-style.btn-cancel:hover { background-color: #c82333; }
+button.btn-secondary, .button-style.btn-secondary { background-color: #6c757d; } /* Grey */
+button.btn-secondary:hover, .button-style.btn-secondary:hover { background-color: #545b62; }
+
+
+/* --- Info/Notification Boxes --- */
+.info-box {
+    margin-top: 15px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    background-color: #f9f9f9;
+    border-radius: 5px;
+    text-align: center;
+}
+
+.info-box p {
+    margin: 0.5rem 0;
+}
+
+.status-notifications {
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #bee5eb;
+    background-color: #d1ecf1; /* Light cyan for general notifications */
+    color: #0c5460;
+    border-radius: 5px;
+    text-align: center;
+}
+.status-notifications p.status-accepted { color: #155724; background-color: #d4edda; border-color: #c3e6cb; padding: 10px; border-radius: 4px;}
+.status-notifications p.status-pending { color: #856404; background-color: #fff3cd; border-color: #ffeeba; padding: 10px; border-radius: 4px;}
+.status-notifications p.status-rejected,
+.status-notifications p.status-superseded,
+.status-notifications p.status-error { color: #721c24; background-color: #f8d7da; border-color: #f5c6cb; padding: 10px; border-radius: 4px;}
+
+
+/* --- Request List Styling (for Driver Dashboard) --- */
+#requests .request-item {
+    margin: 10px 0;
+    padding: 15px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+#requests .request-item p {
+    margin: 0.3rem 0;
+}
+#requests .request-item button {
+    margin-top: 10px;
+    margin-right: 10px;
+}
+#requests .request-item button:last-child {
+    margin-right: 0;
+}

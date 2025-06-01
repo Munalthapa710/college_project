@@ -1,188 +1,304 @@
 {% extends 'user_base.html' %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+{% endblock %}
+
 {% block content %}
 <h2>Welcome, {{ user.name }}</h2>
+<p>Your current location: <strong><span id="currentUserLocationDisplay">
+    {% if user.latitude and user.longitude %}
+        ({{ user.latitude|round(6) }}, {{ user.longitude|round(6) }})
+    {% else %}
+        Please click map to set
+    {% endif %}
+</span></strong>
+   <span id="locationSetMessage" style="color: green; margin-left: 10px; font-weight: bold;"></span></p>
 
-<div style="width: 80%; height: 500px; margin: auto;">
-  <div id="map" style="width: 100%; height: 100%;"></div>
+<div class="map-wrapper-fullwidth">
+    <div class="map-container-inner">
+        <div id="map">
+             <p style="text-align:center; padding-top: 50px; color: #555;">Loading map...</p>
+        </div>
+    </div>
 </div>
 
-<div style="text-align: center; margin-top: 10px;">
-  <button onclick="findNearest()">Find Nearest Driver</button>
-  <p id="nearest"></p>
+<div style="text-align: center; margin-bottom: 20px;">
+  <button id="findNearestBtn" onclick="findNearestAndShowPreview()" 
+          {% if user.latitude is none or user.longitude is none %} 
+          disabled title="Click the map to set your precise location first."
+          {% endif %}>
+    Find Nearest Driver
+  </button>
+  <div id="nearestDriverInfo" class="info-box" style="display:none; max-width: 500px; margin-left: auto; margin-right: auto;">
+    <!-- Content for nearest driver confirmation -->
+  </div>
 </div>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<!-- Add Leaflet Routing Machine CSS and JS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
-<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+<div id="notifications" class="status-notifications">
+  <h4>Current Ride Status:</h4>
+  {% if current_ride_status %}
+    <p class="status-{{ current_ride_status.type }}">
+      {{ current_ride_status.message }} 
+      {% if current_ride_status.timestamp %}
+      <span style="font-size:0.9em; color:#555;">(As of: {{ current_ride_status.timestamp }})</span>
+      {% endif %}
+    </p>
+    {% if current_ride_status.type == 'rejected' or current_ride_status.type == 'superseded' %}
+      <button onclick="findNearestAndShowPreview()" class="btn-secondary"
+              style="margin-top:10px;"
+              {% if user.latitude is none or user.longitude is none %}disabled title="Set your location on map first"{% endif %}>
+        Find Another Driver
+      </button>
+    {% endif %}
+  {% else %}
+    <p>No active ride requests. Click "Find Nearest Driver" to start.</p>
+  {% endif %}
+</div>
 
 <script>
-  document.addEventListener("DOMContentLoaded", function () {
-    const coords = {{ coords | tojson | safe }};
-    const drivers = {{ drivers | tojson | safe }};
-    const userNode = "{{ user.node }}";
-    const fallbackLatLng = [27.7172, 85.3240]; // Kathmandu, Nepal
-    const map = L.map('map').setView(coords[userNode] || fallbackLatLng, 13);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 18,
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-
-    let userMarker = null;
-    let routingControl = null;
-    // driverLeafletMarkers can still be useful if you need to reference driver markers by ID later,
-    // though we are not changing their icons dynamically anymore.
-    let driverLeafletMarkers = {}; 
-
-    // --- Define Icons ---
-    // User Icon: Green
-    const userIcon = new L.Icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    });
-
-    // Driver Icon: Red
-    const driverIcon = new L.Icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    });
-    // --- End Define Icons ---
-
-    // Show fixed user node with the defined userIcon
-    if (coords[userNode]) {
-      userMarker = L.marker(coords[userNode], { icon: userIcon })
-        .addTo(map)
-        .bindPopup("You are here")
-        .openPopup();
-    }
-
-    // Allow users to pin their own location on the map
-    map.on("click", function (e) {
-      const { lat, lng } = e.latlng;
-
-      if (userMarker) {
-        userMarker.setLatLng([lat, lng]).setIcon(userIcon).bindPopup("Selected Location").openPopup();
-      } else {
-        userMarker = L.marker([lat, lng], { icon: userIcon }).addTo(map).bindPopup("Selected Location").openPopup();
-      }
-      // If a route was active, changing user location might invalidate it.
-      // The route will be recalculated on next "Find Nearest Driver" click.
-    });
-
-    // Show all drivers with the defined driverIcon
-    drivers.forEach(driver => {
-      if (driver.node && coords[driver.node]) {
-        const marker = L.marker(coords[driver.node], { icon: driverIcon })
-          .addTo(map)
-          .bindPopup("Driver: " + driver.name);
-        driverLeafletMarkers[driver.email] = marker; // Store if needed for other interactions
-      }
-    });
-
-    window.findNearest = function () {
-      if (!userMarker) {
-        alert("Please click on the map to set your location.");
-        return;
-      }
-
-      const userLatLng = userMarker.getLatLng();
-      let nearestDriver = null;
-      let minDist = Infinity;
-
-      drivers.forEach(driver => {
-        const driverNodeCoords = coords[driver.node];
-        if (!driverNodeCoords) return;
-
-        const driverLatLng = L.latLng(driverNodeCoords[0], driverNodeCoords[1]);
-        const dist = userLatLng.distanceTo(driverLatLng);
-        if (dist < minDist) {
-          minDist = dist;
-          nearestDriver = driver;
-        }
-      });
-
-      // Clear previous route if it exists
-      if (routingControl) {
-        map.removeControl(routingControl);
-        routingControl = null;
-      }
-
-      // Icons are now static, so no need to reset or change them here.
-
-      if (nearestDriver) {
-        document.getElementById("nearest").innerText =
-          `Nearest driver: ${nearestDriver.name} (${Math.round(minDist)} meters as the crow flies). Fetching route...`;
-        
-        const driverLocation = L.latLng(coords[nearestDriver.node][0], coords[nearestDriver.node][1]);
-
-        // Update popups if desired, icons remain static
-        if (userMarker) {
-            userMarker.bindPopup("Your Location").openPopup(); // Or a more route-specific message
-        }
-        const targetDriverMarker = driverLeafletMarkers[nearestDriver.email];
-        if (targetDriverMarker) {
-            targetDriverMarker.bindPopup(`Route to: ${nearestDriver.name}`).openPopup();
-        }
-
-        routingControl = L.Routing.control({
-          waypoints: [
-            userLatLng,
-            driverLocation
-          ],
-          routeWhileDragging: false,
-          show: false, // We are not showing the default itinerary panel
-          addWaypoints: false, // We control waypoints
-          lineOptions: {
-            styles: [{color: 'blue', opacity: 0.8, weight: 5}]
-          },
-          // IMPORTANT: Prevent LRM from adding its own A/B markers, as we use our custom userIcon and driverIcon
-          createMarker: function() { return null; } 
-        }).addTo(map);
-
-        routingControl.on('routesfound', function(e) {
-            var routes = e.routes;
-            var summary = routes[0].summary;
-            document.getElementById("nearest").innerText =
-                `Nearest driver: ${nearestDriver.name}. Route found: ${Math.round(summary.totalDistance / 1000 * 10)/10} km, ${Math.round(summary.totalTime / 60)} mins.`;
-        });
-        routingControl.on('routingerror', function(e) {
-            document.getElementById("nearest").innerText = `Error finding route to ${nearestDriver.name}: ${e.error.message}. Showing straight line distance: ${Math.round(minDist)} meters.`;
-            // No icon changes needed on error either
-        });
+  let map;
+  let userLiveMarker = null; 
+  let allDriverMapMarkers = {}; 
+  let mainAcceptedRouteControl = null; 
+  let previewRouteControl = null;    
+  let currentNearestDriverForConfirmation = null; 
   
-        fetch('/request-ride', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ driver_email: nearestDriver.email })
+  let currentUserLatitude = {{ user.latitude|tojson if user.latitude is not none else 'null' }};
+  let currentUserLongitude = {{ user.longitude|tojson if user.longitude is not none else 'null' }};
+
+  const coordsDataForDrivers = {{ coords | tojson | safe }}; 
+  const allDriversDataForFinding = {{ drivers_for_js | tojson | safe }}; 
+  const currentRideStatusFromServer = {{ current_ride_status | tojson | safe }}; 
+  const fallbackLatLng = L.latLng(27.7172, 85.3240); 
+
+  const userIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
+  const genericDriverIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
+  const enRouteDriverIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
+  const previewDriverIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
+
+  function updateUserPreciseLocationAndSave(latlng) {
+    const locationSetMsgEl = document.getElementById('locationSetMessage');
+    locationSetMsgEl.textContent = ""; 
+
+    userLiveMarker.setLatLng(latlng).bindPopup(`Your Location: (${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)})`).openPopup();
+    document.getElementById('currentUserLocationDisplay').textContent = `(${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)})`;
+    const findBtn = document.getElementById('findNearestBtn');
+    if(findBtn) {findBtn.disabled = false; findBtn.title = "Find Nearest Driver"; }
+    
+    const latChanged = currentUserLatitude === null || Math.abs(currentUserLatitude - latlng.lat) > 0.000001; // Higher precision for change detection
+    const lngChanged = currentUserLongitude === null || Math.abs(currentUserLongitude - latlng.lng) > 0.000001;
+
+    if (latChanged || lngChanged) {
+        console.log("Saving new user precise location to backend:", latlng.lat, latlng.lng);
+        fetch('/set-user-current-location', { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({latitude: latlng.lat, longitude: latlng.lng}) 
         })
-        .then(response => response.json())
+        .then(res => {
+            if(!res.ok) {
+                 return res.text().then(text => {throw new Error(`Server error ${res.status}: ${text.substring(0,100)}` )});
+            }
+            return res.json();
+        })
         .then(data => {
-            console.log('Ride request response:', data);
-            // You might want to update the UI based on this response
-        })
-        .catch(error => {
-            console.error('Error requesting ride:', error);
+            if (data.success) {
+                console.log("User precise location successfully saved:", data.latitude, data.longitude);
+                currentUserLatitude = data.latitude; 
+                currentUserLongitude = data.longitude;
+                locationSetMsgEl.textContent = "Location Set & Saved!";
+            } else { 
+                console.error("Error saving user precise location to backend:", data.error);
+                locationSetMsgEl.textContent = "Could not save location: " + (data.error || "Unknown issue");
+            }
+            setTimeout(() => { locationSetMsgEl.textContent = ""; }, 3000);
+        }).catch(err => {
+            console.error("Fetch error for set-user-current-location:", err);
+            locationSetMsgEl.textContent = "Network error saving location.";
+            setTimeout(() => { locationSetMsgEl.textContent = ""; }, 3000);
         });
+    } else {
+        locationSetMsgEl.textContent = "Location Confirmed."; 
+        setTimeout(() => { locationSetMsgEl.textContent = ""; }, 3000);
+    }
+  }
 
-      } else {
-        document.getElementById("nearest").innerText = "No drivers found.";
-        // No icon changes needed if no driver is found
-      }
-    };
-  
-    // Ensure map resizes correctly if its container size changes after initialization
-    setTimeout(() => map.invalidateSize(), 300); 
+  function drawOrUpdateAllDriverMarkers() {
+    for (const email in allDriverMapMarkers) {
+        if (allDriverMapMarkers[email] && map.hasLayer(allDriverMapMarkers[email])) {
+             map.removeLayer(allDriverMapMarkers[email]);
+        }
+    }
+    allDriverMapMarkers = {};
+    if (!allDriversDataForFinding) { console.warn("allDriversDataForFinding is null/undefined"); return; }
+
+    allDriversDataForFinding.forEach(driver => {
+        if (driver.node && coordsDataForDrivers[driver.node]) { // Drivers use nodes from coordsDataForDrivers
+            let iconToUse = genericDriverIcon;
+            let popupText = `Driver: ${driver.name}<br>Vehicle: ${driver.vehicle}`;
+            let zIndexOffset = 0; 
+
+            if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' &&
+                currentRideStatusFromServer.driver_name === driver.name) { 
+                iconToUse = enRouteDriverIcon; 
+                popupText = `<b>Your Driver: ${driver.name} (En Route)</b><br>Vehicle: ${driver.vehicle}`;
+                zIndexOffset = 1000; 
+            } else if (currentNearestDriverForConfirmation && currentNearestDriverForConfirmation.email === driver.email) {
+                iconToUse = previewDriverIcon; 
+                popupText = `<b>Nearest: ${driver.name}</b><br>Vehicle: ${driver.vehicle}<br>(Previewing)`;
+                zIndexOffset = 500;
+            }
+            const driverMapMarker = L.marker(coordsDataForDrivers[driver.node], { icon: iconToUse, zIndexOffset: zIndexOffset })
+              .addTo(map).bindPopup(popupText);
+            allDriverMapMarkers[driver.email] = driverMapMarker;
+        }
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    let mapInitialView = fallbackLatLng; 
+    let userMarkerInitialLatLng = fallbackLatLng;
+
+    if (currentUserLatitude !== null && currentUserLongitude !== null) {
+        userMarkerInitialLatLng = L.latLng(currentUserLatitude, currentUserLongitude);
+        mapInitialView = userMarkerInitialLatLng;
+    } else if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' && 
+               currentRideStatusFromServer.user_latitude_for_route !== null && 
+               currentRideStatusFromServer.user_longitude_for_route !== null) {
+        userMarkerInitialLatLng = L.latLng(currentRideStatusFromServer.user_latitude_for_route, currentRideStatusFromServer.user_longitude_for_route);
+        mapInitialView = userMarkerInitialLatLng;
+        document.getElementById('currentUserLocationDisplay').textContent = `(${userMarkerInitialLatLng.lat.toFixed(6)}, ${userMarkerInitialLatLng.lng.toFixed(6)})`;
+        currentUserLatitude = userMarkerInitialLatLng.lat; 
+        currentUserLongitude = userMarkerInitialLatLng.lng;
+        const findBtn = document.getElementById('findNearestBtn');
+        if(findBtn && (currentUserLatitude !== null && currentUserLongitude !== null)) { findBtn.disabled = false; findBtn.title = ""; }
+    }
+    
+    map = L.map('map').setView(mapInitialView, 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OSM' }).addTo(map);
+
+    userLiveMarker = L.marker(userMarkerInitialLatLng, { icon: userIcon, draggable: true })
+      .addTo(map).bindPopup(currentUserLatitude !== null ? `Your Location: (${currentUserLatitude.toFixed(6)}, ${currentUserLongitude.toFixed(6)})` : "Click map to set your location").openPopup();
+    
+    userLiveMarker.on('dragend', function(e){ updateUserPreciseLocationAndSave(e.target.getLatLng()); });
+    map.on("click", function (e) { updateUserPreciseLocationAndSave(e.latlng); });
+
+    drawOrUpdateAllDriverMarkers(); 
+
+    if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' && 
+        currentRideStatusFromServer.driver_node && coordsDataForDrivers[currentRideStatusFromServer.driver_node] && 
+        currentRideStatusFromServer.user_latitude_for_route !== null && 
+        currentRideStatusFromServer.user_longitude_for_route !== null) {
+        
+        const driverNodeCoords = coordsDataForDrivers[currentRideStatusFromServer.driver_node];
+        const driverLatLng = L.latLng(driverNodeCoords[0], driverNodeCoords[1]);
+        const userLatLngForRoute = L.latLng(currentRideStatusFromServer.user_latitude_for_route, currentRideStatusFromServer.user_longitude_for_route);
+        
+        userLiveMarker.setLatLng(userLatLngForRoute); 
+        drawMainAcceptedRoute(userLatLngForRoute, driverLatLng);
+    }
+    setTimeout(() => { if(map) map.invalidateSize(); }, 300);
   });
-  </script>
+
+  function clearMainAcceptedRoute() { if (mainAcceptedRouteControl) { map.removeControl(mainAcceptedRouteControl); mainAcceptedRouteControl = null; }}
+  function clearPreviewRoute() { 
+    if (previewRouteControl) { map.removeControl(previewRouteControl); previewRouteControl = null; }
+    if (currentNearestDriverForConfirmation && allDriverMapMarkers[currentNearestDriverForConfirmation.email]) {
+        let iconForRevert = genericDriverIcon; 
+        if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' && currentRideStatusFromServer.driver_name === currentNearestDriverForConfirmation.name) {
+            iconForRevert = enRouteDriverIcon;
+        }
+        allDriverMapMarkers[currentNearestDriverForConfirmation.email].setIcon(iconForRevert).setZIndexOffset(0);
+    }
+  }
+  
+  function drawMainAcceptedRoute(usrLatlng, drvLatLng) {
+    clearMainAcceptedRoute(); 
+    mainAcceptedRouteControl = L.Routing.control({ 
+        waypoints: [L.latLng(usrLatlng), L.latLng(drvLatLng)], 
+        routeWhileDragging: false, show: false, addWaypoints: false, 
+        lineOptions: { styles: [{color: 'blue', opacity: 0.9, weight: 6}] }, 
+        createMarker: ()=>null 
+    }).addTo(map);
+    map.fitBounds(L.latLngBounds([usrLatlng, drvLatLng]), {padding: [50,50]});
+  }
+
+  window.findNearestAndShowPreview = function () {
+    if (currentUserLatitude === null || currentUserLongitude === null) { 
+        alert("Please set your location on the map first by clicking where you are."); return; 
+    }
+    document.getElementById('findNearestBtn').disabled = true; 
+    clearPreviewRoute(); 
+
+    const userCurrentLatLng = userLiveMarker.getLatLng();
+    let nearestDriver = null; let minDist = Infinity;
+    if (!allDriversDataForFinding) { console.error("No driver data available for finding nearest."); infoDiv.innerHTML = "<p>Driver data not loaded.</p>"; infoDiv.style.display = 'block'; document.getElementById('findNearestBtn').disabled = false; return; }
+
+    allDriversDataForFinding.forEach(d => {
+      if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' && currentRideStatusFromServer.driver_name === d.name) {
+         return; 
+      }
+      if (!d.node || !coordsDataForDrivers[d.node]) return; // Drivers use nodes
+      const dist = userCurrentLatLng.distanceTo(L.latLng(coordsDataForDrivers[d.node][0], coordsDataForDrivers[d.node][1]));
+      if (dist < minDist) { minDist = dist; nearestDriver = d; }
+    });
+
+    const infoDiv = document.getElementById("nearestDriverInfo");
+    if (nearestDriver) {
+      currentNearestDriverForConfirmation = nearestDriver; 
+      if (allDriverMapMarkers[nearestDriver.email]) {
+          allDriverMapMarkers[nearestDriver.email].setIcon(previewDriverIcon).setZIndexOffset(500).openPopup();
+      }
+      infoDiv.innerHTML = `<p><strong>Nearest:</strong> ${nearestDriver.name} (${Math.round(minDist)}m) <br><strong>Vehicle:</strong> ${nearestDriver.vehicle||'N/A'}</p><button class="btn-confirm" onclick="confirmRequestAndClearPreview()">Confirm Request</button> <button class="btn-cancel" onclick="cancelDriverSelectionAndClearPreview()" style="margin-left:10px;">Cancel</button>`;
+      infoDiv.style.display = 'block';
+      previewRouteControl = L.Routing.control({ waypoints: [userCurrentLatLng, L.latLng(coordsDataForDrivers[nearestDriver.node][0], coordsDataForDrivers[nearestDriver.node][1])], routeWhileDragging: false, show: false, addWaypoints: false, lineOptions: { styles: [{color: 'purple', opacity: 0.6, weight: 4}] }, createMarker: ()=>null }).addTo(map);
+    } else { 
+        infoDiv.innerHTML = "<p>No other drivers currently available.</p>"; 
+        infoDiv.style.display = 'block'; 
+        document.getElementById('findNearestBtn').disabled = false; 
+    }
+  };
+
+  window.confirmRequestAndClearPreview = function() {
+    if (!currentNearestDriverForConfirmation || currentUserLatitude === null || currentUserLongitude === null) { 
+        alert("Driver selection or your location is not properly set."); 
+        cancelDriverSelectionAndClearPreview(); return; 
+    }
+    const infoDiv = document.getElementById("nearestDriverInfo");
+    infoDiv.innerHTML = `<p>Sending request to ${currentNearestDriverForConfirmation.name}...</p>`;
+    
+    // Clear preview visuals IMMEDIATELY
+    const previewedDriverEmail = currentNearestDriverForConfirmation.email; // Store before clearing
+    clearPreviewRoute(); 
+    // Revert the icon of the driver that was being previewed by redrawing all markers
+    // This is simpler than trying to revert just one if it might also be an accepted driver.
+    currentNearestDriverForConfirmation = null; // Clear this so drawOrUpdate doesn't re-apply purple
+    drawOrUpdateAllDriverMarkers(); 
+
+    clearMainAcceptedRoute(); 
+    
+    fetch('/request-ride', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ driver_email: previewedDriverEmail }) })
+    .then(res => res.json()).then(data => {
+      if (!data.success) throw new Error(data.message || "Request failed. Ensure your location is set on the map.");
+      infoDiv.innerHTML = `<p style="color:green;">${data.message} Refreshing...</p>`;
+      setTimeout(() => location.reload(), 1500); 
+    }).catch(err => {
+      console.error('Ride request error:', err);
+      infoDiv.innerHTML = `<p style="color:red;">Error: ${err.message}</p><button onclick="findNearestAndShowPreview()">Try Again</button>`;
+      document.getElementById('findNearestBtn').disabled = false;
+    });
+  };
+
+  window.cancelDriverSelectionAndClearPreview = function() { 
+    clearPreviewRoute(); 
+    currentNearestDriverForConfirmation = null; 
+    drawOrUpdateAllDriverMarkers(); // Redraw to reset any previewed driver's icon
+    document.getElementById("nearestDriverInfo").style.display = 'none'; 
+    document.getElementById('findNearestBtn').disabled = false; 
+  };
+</script>
 {% endblock %}

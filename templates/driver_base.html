@@ -1,20 +1,23 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>{{ title or "Driver Panel" }}</title>
-    <style>
-        nav { background-color: #660000; padding: 10px; }
-        nav a { color: white; margin-right: 20px; text-decoration: none; }
-    </style>
+    <title>{{ title or "Driver Panel" }} - EVTS</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard_styles.css') }}">
+    {% block head_extra %}{% endblock %} <!-- For dashboard specific CSS/JS links -->
 </head>
 <body>
-    <nav>
-        <a href="/driver-home">Home</a>
-        <a href="/dashboard">Dashboard</a><a href="/driver-history">History</a>
-        <a href="/driver-about">About Us</a>
-        <a href="/logout">Logout</a>
+    <nav class="navbar driver-navbar">
+        <a href="{{ url_for('driver_home') }}" class="nav-brand">EVTS Driver</a>
+        <div class="nav-links">
+            <a href="{{ url_for('driver_home') }}">Home</a>
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('driver_history') }}">History</a>
+            <a href="{{ url_for('driver_about') }}">About Us</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+        </div>
     </nav>
-    <div class="content">
+    <div class="dashboard-content">
         {% block content %}{% endblock %}
     </div>
 </body>

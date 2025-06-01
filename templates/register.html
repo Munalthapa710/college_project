@@ -6,20 +6,21 @@
     <title>Sign up - Emergency vehicle tracker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Grand+Hotel&display=swap" rel="stylesheet"> <!-- For logo text -->
+    <link href="https://fonts.googleapis.com/css2?family=Grand+Hotel&display=swap" rel="stylesheet">
     <script>
         function toggleRoleFields() {
             const role = document.getElementById("role").value;
-            const driverFields = document.getElementById("driver-specific-fields"); // Target the container
+            const driverFields = document.getElementById("driver-specific-fields");
+            // const userLocationFields = document.getElementById("user-location-fields"); // No longer needed for user reg
 
             if (driverFields) {
                 driverFields.style.display = (role === "driver") ? "block" : "none";
             }
+            // if (userLocationFields) { // No longer needed for user reg
+            //     userLocationFields.style.display = (role === "user") ? "block" : "none";
+            // }
         }
-
-        // Call it on page load to set the initial state based on the selected role (if any)
-        // and when the role selection changes.
-        window.onload = toggleRoleFields;
+        window.onload = toggleRoleFields; // Call on page load
     </script>
 </head>
 <body>
@@ -28,16 +29,6 @@
             <div class="login-wrapper">
                 <div class="login-box register-box">
                     <h1 class="login-logo">Emergency vehicle tracker</h1>
-
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                      {% if messages %}
-                        <ul class="flashes">
-                        {% for category, message in messages %}
-                          <li class="{{ category }}">{{ message }}</li>
-                        {% endfor %}
-                        </ul>
-                      {% endif %}
-                    {% endwith %}
 
                     <form method="POST" action="{{ url_for('register') }}">
                         <div class="form-group">
@@ -64,29 +55,30 @@
                             <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm Password" required>
                         </div>
 
+                        <!-- Driver Specific Fields -->
                         <div id="driver-specific-fields" style="display: none;"> 
                             <div class="form-group">
-                                <input type="text" name="vehicle" id="vehicle" placeholder="Vehicle Type (e.g., Sedan, SUV)">
+                                <input type="text" name="vehicle" id="vehicle" placeholder="Vehicle Type (e.g., Ambulance, Fire Truck)">
                             </div>
                             <div class="form-group">
-                                <label for="node" class="sr-only">Location Node:</label>
+                                <label for="node" class="sr-only">Initial Location Node:</label>
                                 <select name="node" id="node" class="role-select">
-                                    <option value="" disabled selected>Select Location Node</option>
-                                    {% for node in nodes %}
-                                        <option value="{{ node }}">{{ node }}</option>
+                                    <option value="" disabled selected>Select Initial Location Node</option>
+                                    {% for node_key in nodes %}
+                                        <option value="{{ node_key }}">{{ node_key }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
                         </div>
+                        
+                        <!-- User location is now set via map on their dashboard -->
 
                         <button type="submit" class="btn-login">Sign up</button>
                     </form>
                 </div>
-
                 <div class="signup-box">
                     <p>Have an account? <a href="{{ url_for('login') }}">Log in</a></p>
                 </div>
-
             </div>
         </main>
     </div>

@@ -1,18 +1,26 @@
 {% extends 'driver_base.html' %}
 {% block content %}
-<h2>Assigned Ride Requests</h2>
-<table border="1" cellpadding="8" cellspacing="0">
-  <tr>
-    <th>User</th>
-    <th>Status</th>
-    <th>Time</th>
-  </tr>
+<h2>Assigned Ride Requests History</h2>
+{% if requests %}
+<table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 80%; margin: 20px auto;">
+  <thead>
+    <tr style="background-color: #f2f2f2;">
+      <th>User</th>
+      <th>Status</th>
+      <th>Time</th>
+    </tr>
+  </thead>
+  <tbody>
   {% for req in requests %}
   <tr>
-    <td>{{ req.user_email }}</td>
+    <td>{{ req.user_name }}</td>
     <td>{{ req.status }}</td>
-    <td>{{ req.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+    <td>{{ req.timestamp }}</td>
   </tr>
   {% endfor %}
+  </tbody>
 </table>
+{% else %}
+<p>You have no assigned ride request history.</p>
+{% endif %}
 {% endblock %}
