@@ -1,12 +1,56 @@
-<h2>Login</h2>
-<form method="POST" action="/login">
-  Role:
-  <select name="role">
-    <option value="user">User</option>
-    <option value="driver">Driver</option>
-  </select><br>
-  Email: <input name="username" required><br>
-  Password: <input name="password" type="password" required><br>
-  <button type="submit">Login</button>
-</form>
-<p>Don’t have an account? <a href="/register">Register Now</a></p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Emergency vehicle tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Grand+Hotel&display=swap" rel="stylesheet"> <!-- For logo text -->
+
+  </head>
+<body>
+    <div class="page-container">
+        <main class="login-main">
+            <div class="login-wrapper">
+                <div class="login-box">
+                    <h1 class="login-logo">Emergency vehicle tracker</h1>
+
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                      {% if messages %}
+                        <ul class="flashes">
+                        {% for category, message in messages %}
+                          <li class="{{ category }}">{{ message }}</li>
+                        {% endfor %}
+                        </ul>
+                      {% endif %}
+                    {% endwith %}
+
+                    <form method="POST" action="{{ url_for('login') }}">
+                        <div class="form-group">
+                            <input type="text" name="username" id="username" placeholder="Phone number, username, or email" required>
+                        </div>
+                        <div class="form-group">
+                            <input type="password" name="password" id="password" placeholder="Password" required>
+                        </div>
+                        <div class="form-group">
+                             <label for="role" class="sr-only">Role:</label> <!-- Screen reader only label -->
+                            <select name="role" id="role" class="role-select">
+                                <option value="user">User</option>
+                                <option value="driver">Driver</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn-login">Log In</button>
+                    </form>
+
+                </div>
+
+                <div class="signup-box">
+                    <p>Don't have an account? <a href="{{ url_for('register') }}">Sign up</a></p>
+                </div>
+
+            </div>
+        </main>
+    </div>
+</body>
+</html>

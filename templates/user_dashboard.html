@@ -14,96 +14,175 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+<!-- Add Leaflet Routing Machine CSS and JS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
+<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     const coords = {{ coords | tojson | safe }};
     const drivers = {{ drivers | tojson | safe }};
     const userNode = "{{ user.node }}";
-    const fallbackLatLng = [27.7172, 85.3240];
+    const fallbackLatLng = [27.7172, 85.3240]; // Kathmandu, Nepal
     const map = L.map('map').setView(coords[userNode] || fallbackLatLng, 13);
-  
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 18,
-      attribution: '&copy; OpenStreetMap contributors'
+      attribution: '© OpenStreetMap contributors'
     }).addTo(map);
-  
+
     let userMarker = null;
-  
-    // Show fixed user node
+    let routingControl = null;
+    // driverLeafletMarkers can still be useful if you need to reference driver markers by ID later,
+    // though we are not changing their icons dynamically anymore.
+    let driverLeafletMarkers = {}; 
+
+    // --- Define Icons ---
+    // User Icon: Green
+    const userIcon = new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+
+    // Driver Icon: Red
+    const driverIcon = new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+    // --- End Define Icons ---
+
+    // Show fixed user node with the defined userIcon
     if (coords[userNode]) {
-      userMarker = L.marker(coords[userNode])
+      userMarker = L.marker(coords[userNode], { icon: userIcon })
         .addTo(map)
         .bindPopup("You are here")
         .openPopup();
     }
-  
+
     // Allow users to pin their own location on the map
     map.on("click", function (e) {
       const { lat, lng } = e.latlng;
-  
+
       if (userMarker) {
-        userMarker.setLatLng([lat, lng]).bindPopup("Selected Location").openPopup();
+        userMarker.setLatLng([lat, lng]).setIcon(userIcon).bindPopup("Selected Location").openPopup();
       } else {
-        userMarker = L.marker([lat, lng]).addTo(map).bindPopup("Selected Location").openPopup();
+        userMarker = L.marker([lat, lng], { icon: userIcon }).addTo(map).bindPopup("Selected Location").openPopup();
       }
-  
-      userMarker._latlng = [lat, lng];  // store custom user location for Find Nearest
+      // If a route was active, changing user location might invalidate it.
+      // The route will be recalculated on next "Find Nearest Driver" click.
     });
-  
-    // Show all drivers
+
+    // Show all drivers with the defined driverIcon
     drivers.forEach(driver => {
       if (driver.node && coords[driver.node]) {
-        L.marker(coords[driver.node])
+        const marker = L.marker(coords[driver.node], { icon: driverIcon })
           .addTo(map)
           .bindPopup("Driver: " + driver.name);
+        driverLeafletMarkers[driver.email] = marker; // Store if needed for other interactions
       }
     });
-  
+
     window.findNearest = function () {
       if (!userMarker) {
         alert("Please click on the map to set your location.");
         return;
       }
-  
+
       const userLatLng = userMarker.getLatLng();
-      let nearest = null;
+      let nearestDriver = null;
       let minDist = Infinity;
-  
+
       drivers.forEach(driver => {
-        const driverLatLng = coords[driver.node];
-        if (!driverLatLng) return;
-  
-        const dist = L.latLng(userLatLng).distanceTo(driverLatLng);
+        const driverNodeCoords = coords[driver.node];
+        if (!driverNodeCoords) return;
+
+        const driverLatLng = L.latLng(driverNodeCoords[0], driverNodeCoords[1]);
+        const dist = userLatLng.distanceTo(driverLatLng);
         if (dist < minDist) {
           minDist = dist;
-          nearest = driver;
+          nearestDriver = driver;
         }
       });
-  
-      if (nearest) {
+
+      // Clear previous route if it exists
+      if (routingControl) {
+        map.removeControl(routingControl);
+        routingControl = null;
+      }
+
+      // Icons are now static, so no need to reset or change them here.
+
+      if (nearestDriver) {
         document.getElementById("nearest").innerText =
-          `Nearest driver: ${nearest.name} (${Math.round(minDist)} meters)`;
-  
-        L.polyline([userLatLng, coords[nearest.node]], {
-          color: 'blue',
-          weight: 4,
-          opacity: 0.9
+          `Nearest driver: ${nearestDriver.name} (${Math.round(minDist)} meters as the crow flies). Fetching route...`;
+        
+        const driverLocation = L.latLng(coords[nearestDriver.node][0], coords[nearestDriver.node][1]);
+
+        // Update popups if desired, icons remain static
+        if (userMarker) {
+            userMarker.bindPopup("Your Location").openPopup(); // Or a more route-specific message
+        }
+        const targetDriverMarker = driverLeafletMarkers[nearestDriver.email];
+        if (targetDriverMarker) {
+            targetDriverMarker.bindPopup(`Route to: ${nearestDriver.name}`).openPopup();
+        }
+
+        routingControl = L.Routing.control({
+          waypoints: [
+            userLatLng,
+            driverLocation
+          ],
+          routeWhileDragging: false,
+          show: false, // We are not showing the default itinerary panel
+          addWaypoints: false, // We control waypoints
+          lineOptions: {
+            styles: [{color: 'blue', opacity: 0.8, weight: 5}]
+          },
+          // IMPORTANT: Prevent LRM from adding its own A/B markers, as we use our custom userIcon and driverIcon
+          createMarker: function() { return null; } 
         }).addTo(map);
+
+        routingControl.on('routesfound', function(e) {
+            var routes = e.routes;
+            var summary = routes[0].summary;
+            document.getElementById("nearest").innerText =
+                `Nearest driver: ${nearestDriver.name}. Route found: ${Math.round(summary.totalDistance / 1000 * 10)/10} km, ${Math.round(summary.totalTime / 60)} mins.`;
+        });
+        routingControl.on('routingerror', function(e) {
+            document.getElementById("nearest").innerText = `Error finding route to ${nearestDriver.name}: ${e.error.message}. Showing straight line distance: ${Math.round(minDist)} meters.`;
+            // No icon changes needed on error either
+        });
   
-        // Send request
         fetch('/request-ride', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ driver_email: nearest.email })
+          body: JSON.stringify({ driver_email: nearestDriver.email })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Ride request response:', data);
+            // You might want to update the UI based on this response
+        })
+        .catch(error => {
+            console.error('Error requesting ride:', error);
         });
+
       } else {
         document.getElementById("nearest").innerText = "No drivers found.";
+        // No icon changes needed if no driver is found
       }
     };
   
-    setTimeout(() => map.invalidateSize(), 300);
+    // Ensure map resizes correctly if its container size changes after initialization
+    setTimeout(() => map.invalidateSize(), 300); 
   });
   </script>
-  
-  
 {% endblock %}

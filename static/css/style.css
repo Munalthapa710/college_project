@@ -1,0 +1,319 @@
+/* static/css/style.css */
+
+/* --- General Page Setup & Background --- */
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #1A001A; /* Dark purple fallback */
+    color: #f0f0f0; /* Light default text color for dark backgrounds */
+}
+
+.page-container {
+    /* Hot and sexy gradient: Deep Indigo -> Crimson -> Hot Pink */
+    background: linear-gradient(45deg, #2E0854 0%, #C00000 50%, #FF69B4 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.login-main { /* Renamed for clarity, used by both login and register */
+    display: flex;
+    flex-grow: 1;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.login-wrapper { /* Container for the dark boxes */
+    max-width: 350px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Space between main box and signup/login link box */
+}
+
+/* --- Main Content Boxes (Login/Register Forms) --- */
+.login-box { /* Shared style for the main form box */
+    background-color: rgba(26, 18, 37, 0.85); /* Very dark, slightly purplish, semi-transparent */
+    border: 1px solid #4A265F; /* Muted deep purple border */
+    border-radius: 5px; /* Slightly more rounded */
+    padding: 30px 40px 20px;
+    text-align: center;
+    box-shadow: 0 0 25px rgba(0, 0, 0, 0.5);
+}
+
+.login-box.register-box { /* Specific tweaks for register box if needed */
+    padding-top: 20px;
+}
+
+.login-logo {
+    font-family: 'Grand Hotel', cursive; /* Keep this stylish font */
+    font-size: 3.5em; /* Slightly larger */
+    color: #FF69B4; /* Hot Pink */
+    margin: 22px auto 12px;
+    font-weight: 500;
+    text-shadow: 0 0 10px rgba(255, 105, 180, 0.7); /* Subtle glow */
+}
+
+.tagline { /* For registration page */
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 20px;
+    color: #B0A5C2; /* Light, desaturated purple-grey */
+    margin: 0 0 10px;
+    text-align: center;
+}
+
+/* --- Flash Messages --- */
+.flashes {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 15px 0;
+}
+.flashes li {
+    padding: 10px 15px; /* Slightly more padding */
+    margin-bottom: 10px;
+    border-radius: 4px;
+    color: #fff;
+    font-size: 0.9em;
+    text-align: left;
+    font-weight: 600;
+}
+.flashes li.error, .flashes li.danger { background-color: #B22222; } /* Firebrick Red */
+.flashes li.success { background-color: #C71585; } /* MediumVioletRed (thematic success) */
+.flashes li.info { background-color: #8A2BE2; } /* BlueViolet */
+.flashes li.warning { background-color: #FF8C00; color: #fff; } /* DarkOrange, white text */
+
+
+/* --- Form Elements --- */
+.form-group {
+    margin-bottom: 10px; /* Slightly more space */
+    text-align: left;
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"],
+.form-group input[type="email"],
+.form-group input[type="tel"] {
+    width: 100%;
+    padding: 10px 12px; /* Slightly larger padding */
+    border: 1px solid #4A265F; /* Muted deep purple border */
+    border-radius: 4px;
+    box-sizing: border-box;
+    background-color: #2C1D3E; /* Dark Purple input background */
+    font-size: 13px;
+    color: #EAEAEA; /* Light text for inputs */
+}
+
+.form-group input::placeholder {
+    color: #7F709A; /* Muted purple-grey placeholder */
+}
+
+.form-group input:focus,
+.form-group select.role-select:focus {
+    border-color: #FF69B4; /* Hot Pink focus border */
+    outline: none;
+    box-shadow: 0 0 8px rgba(255, 105, 180, 0.7); /* Hot Pink glow */
+}
+
+.form-group select.role-select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #4A265F;
+    border-radius: 4px;
+    box-sizing: border-box;
+    background-color: #2C1D3E;
+    font-size: 13px;
+    color: #EAEAEA;
+    margin-bottom: 8px;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23B0A5C2%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.4-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: .7em auto;
+    padding-right: 30px; /* Space for the arrow */
+}
+.form-group select.role-select option {
+    color: #262626; /* Standard dark text for options dropdown */
+    background-color: #fff; /* Standard white bg for options dropdown */
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.btn-login {
+    background-color: #E5005A; /* Strong, vibrant pink/magenta */
+    color: white;
+    padding: 10px 0; /* Increased padding */
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 15px; /* Slightly larger font */
+    font-weight: 700; /* Bolder */
+    width: 100%;
+    margin-top: 20px; /* More space above button */
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    text-transform: uppercase; /* More impactful */
+    letter-spacing: 0.5px;
+}
+
+.btn-login:hover {
+    background-color: #FF006A; /* Brighter on hover */
+    transform: scale(1.02); /* Slight grow effect */
+}
+
+.btn-login:disabled {
+    background-color: #7A0030; /* Dark, desaturated version */
+    cursor: default;
+    transform: none;
+}
+
+/* --- "OR" Separator (for login page) --- */
+.separator {
+    display: flex;
+    align-items: center;
+    margin: 20px 0;
+    color: #B0A5C2; /* Light, desaturated purple-grey */
+    font-size: 13px;
+    font-weight: 600;
+}
+.separator .line {
+    flex-grow: 1;
+    height: 1px;
+    background-color: #4A265F; /* Muted deep purple line */
+}
+.separator .or-text {
+    margin: 0 18px;
+    text-transform: uppercase;
+}
+
+/* --- Social Login (for login page) --- */
+.social-login {
+    margin-bottom: 20px;
+}
+.btn-facebook {
+    background: none;
+    border: none;
+    color: #FF69B4; /* Hot Pink */
+    font-weight: 600;
+    font-size: 14px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    padding: 8px; /* More clickable area */
+    transition: color 0.2s ease;
+}
+.btn-facebook:hover {
+    color: #FF80BF; /* Lighter Hot Pink on hover */
+    text-decoration: none;
+}
+.facebook-icon {
+    display: inline-block;
+    width: 18px; /* Slightly larger */
+    height: 18px;
+    background-image: url("data:image/svg+xml,%3Csvg aria-hidden='true' focusable='false' data-prefix='fab' data-icon='facebook-square' class='svg-inline--fa fa-facebook-square fa-w-14' role='img' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='%23FF69B4' d='M400 32H48A48 48 0 0 0 0 80v352a48 48 0 0 0 48 48h137.25V327.69h-63V256h63v-54.64c0-62.15 37-96.48 93.67-96.48 27.14 0 55.52 4.84 55.52 4.84v61h-31.27c-30.81 0-40.42 19.12-40.42 38.73V256h68.78l-11 71.69h-57.78V480H400a48 48 0 0 0 48-48V80a48 48 0 0 0-48-48z'%3E%3C/path%3E%3C/svg%3E"); /* Hot Pink icon */
+    background-repeat: no-repeat;
+    background-size: contain;
+    margin-right: 8px;
+}
+
+/* --- Links --- */
+.forgot-password {
+    color: #FF80BF; /* Lighter Hot Pink */
+    font-size: 12px;
+    text-decoration: none;
+    display: block;
+    transition: color 0.2s ease;
+}
+.forgot-password:hover {
+    color: #FFB3DA; /* Even Lighter Hot Pink on hover */
+    text-decoration: underline;
+}
+
+.terms-text {
+    font-size: 12px;
+    line-height: 16px;
+    color: #B0A5C2; /* Light, desaturated purple-grey */
+    margin: 15px 0;
+    text-align: center;
+}
+.terms-text a {
+    color: #FF80BF; /* Lighter Hot Pink */
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+.terms-text a:hover {
+    color: #FFB3DA; /* Even Lighter Hot Pink on hover */
+    text-decoration: underline;
+}
+
+/* --- Bottom Box (Switch between Login/Sign Up) --- */
+.signup-box {
+    background-color: rgba(26, 18, 37, 0.85); /* Consistent with .login-box */
+    border: 1px solid #4A265F;
+    border-radius: 5px;
+    padding: 20px 40px;
+    text-align: center;
+    margin-top: 10px;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.4);
+}
+.signup-box p {
+    margin: 0;
+    font-size: 14px;
+    color: #EAEAEA; /* Light text */
+}
+.signup-box a {
+    color: #FF69B4; /* Hot Pink */
+    font-weight: 700; /* Bolder */
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+.signup-box a:hover {
+    color: #FF80BF; /* Lighter Hot Pink */
+    text-decoration: underline;
+}
+
+/* --- Get The App Section --- */
+.get-app {
+    text-align: center;
+    margin-top: 20px;
+}
+.get-app p {
+    font-size: 14px;
+    color: #EAEAEA; /* Light text */
+    margin: 20px 0;
+}
+.app-stores {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+.app-stores img {
+    height: 40px;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+.app-stores img:hover {
+    opacity: 0.8;
+}
+
+/* --- Driver Specific Fields Container (Hidden by JS/inline style initially) --- */
+/* #driver-specific-fields { } */
+/* No specific CSS needed for the container itself unless for padding/margin.
+   Individual fields within it (.form-group) will inherit styles. */

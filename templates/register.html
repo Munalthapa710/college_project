@@ -1,54 +1,94 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Register</title>
-    <style>
-        .driver-only {
-            display: none;
-            margin-top: 10px;
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign up - Emergency vehicle tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Grand+Hotel&display=swap" rel="stylesheet"> <!-- For logo text -->
     <script>
         function toggleRoleFields() {
             const role = document.getElementById("role").value;
-            const driverFields = document.querySelectorAll(".driver-only");
+            const driverFields = document.getElementById("driver-specific-fields"); // Target the container
 
-            driverFields.forEach(field => {
-                field.style.display = (role === "driver") ? "block" : "none";
-            });
+            if (driverFields) {
+                driverFields.style.display = (role === "driver") ? "block" : "none";
+            }
         }
 
+        // Call it on page load to set the initial state based on the selected role (if any)
+        // and when the role selection changes.
         window.onload = toggleRoleFields;
     </script>
 </head>
 <body>
-    <h2>Register</h2>
-    <form method="POST" action="/register">
-        <label for="role">Role:</label>
-        <select name="role" id="role" onchange="toggleRoleFields()">
-            <option value="user">User</option>
-            <option value="driver">Driver</option>
-        </select><br><br>
+    <div class="page-container">
+        <main class="login-main">
+            <div class="login-wrapper">
+                <div class="login-box register-box">
+                    <h1 class="login-logo">Emergency vehicle tracker</h1>
 
-        Name: <input name="name" required><br>
-        Email: <input name="email" required><br>
-        Phone: <input name="phone" required><br>
-        Password: <input name="password" type="password" required><br>
-        Confirm Password: <input name="confirm_password" type="password" required><br>
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                      {% if messages %}
+                        <ul class="flashes">
+                        {% for category, message in messages %}
+                          <li class="{{ category }}">{{ message }}</li>
+                        {% endfor %}
+                        </ul>
+                      {% endif %}
+                    {% endwith %}
 
-        <div class="driver-only">
-            Vehicle Type: <input name="vehicle"><br>
-            Location Node:
-            <select name="node">
-                {% for node in nodes %}
-                    <option value="{{ node }}">{{ node }}</option>
-                {% endfor %}
-            </select><br>
-        </div>
+                    <form method="POST" action="{{ url_for('register') }}">
+                        <div class="form-group">
+                            <label for="role" class="sr-only">Role:</label>
+                            <select name="role" id="role" class="role-select" onchange="toggleRoleFields()">
+                                <option value="user">User</option>
+                                <option value="driver">Driver</option>
+                            </select>
+                        </div>
 
-        <br><button type="submit">Register</button>
-    </form>
+                        <div class="form-group">
+                            <input type="text" name="name" id="name" placeholder="Full Name" required>
+                        </div>
+                        <div class="form-group">
+                            <input type="email" name="email" id="email" placeholder="Email" required>
+                        </div>
+                        <div class="form-group">
+                            <input type="tel" name="phone" id="phone" placeholder="Phone Number" required>
+                        </div>
+                        <div class="form-group">
+                            <input type="password" name="password" id="password" placeholder="Password" required>
+                        </div>
+                        <div class="form-group">
+                            <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm Password" required>
+                        </div>
 
-    <p>Already have an account? <a href="/login">Login</a></p>
+                        <div id="driver-specific-fields" style="display: none;"> 
+                            <div class="form-group">
+                                <input type="text" name="vehicle" id="vehicle" placeholder="Vehicle Type (e.g., Sedan, SUV)">
+                            </div>
+                            <div class="form-group">
+                                <label for="node" class="sr-only">Location Node:</label>
+                                <select name="node" id="node" class="role-select">
+                                    <option value="" disabled selected>Select Location Node</option>
+                                    {% for node in nodes %}
+                                        <option value="{{ node }}">{{ node }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-login">Sign up</button>
+                    </form>
+                </div>
+
+                <div class="signup-box">
+                    <p>Have an account? <a href="{{ url_for('login') }}">Log in</a></p>
+                </div>
+
+            </div>
+        </main>
+    </div>
 </body>
 </html>
