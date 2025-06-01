@@ -1,0 +1,18 @@
+{% extends 'user_base.html' %}
+{% block content %}
+<h2>My Request History</h2>
+<table border="1" cellpadding="8" cellspacing="0">
+  <tr>
+    <th>Driver</th>
+    <th>Status</th>
+    <th>Time</th>
+  </tr>
+  {% for req in requests %}
+  <tr>
+    <td>{{ req.driver_email }}</td>
+    <td>{{ req.status }}</td>
+    <td>{{ req.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

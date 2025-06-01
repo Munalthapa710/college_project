@@ -1,0 +1,12 @@
+<h2>Login</h2>
+<form method="POST" action="/login">
+  Role:
+  <select name="role">
+    <option value="user">User</option>
+    <option value="driver">Driver</option>
+  </select><br>
+  Email: <input name="username" required><br>
+  Password: <input name="password" type="password" required><br>
+  <button type="submit">Login</button>
+</form>
+<p>Don’t have an account? <a href="/register">Register Now</a></p>

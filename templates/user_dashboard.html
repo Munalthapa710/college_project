@@ -1,0 +1,109 @@
+{% extends 'user_base.html' %}
+{% block content %}
+<h2>Welcome, {{ user.name }}</h2>
+
+<div style="width: 80%; height: 500px; margin: auto;">
+  <div id="map" style="width: 100%; height: 100%;"></div>
+</div>
+
+<div style="text-align: center; margin-top: 10px;">
+  <button onclick="findNearest()">Find Nearest Driver</button>
+  <p id="nearest"></p>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const coords = {{ coords | tojson | safe }};
+    const drivers = {{ drivers | tojson | safe }};
+    const userNode = "{{ user.node }}";
+    const fallbackLatLng = [27.7172, 85.3240];
+    const map = L.map('map').setView(coords[userNode] || fallbackLatLng, 13);
+  
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+  
+    let userMarker = null;
+  
+    // Show fixed user node
+    if (coords[userNode]) {
+      userMarker = L.marker(coords[userNode])
+        .addTo(map)
+        .bindPopup("You are here")
+        .openPopup();
+    }
+  
+    // Allow users to pin their own location on the map
+    map.on("click", function (e) {
+      const { lat, lng } = e.latlng;
+  
+      if (userMarker) {
+        userMarker.setLatLng([lat, lng]).bindPopup("Selected Location").openPopup();
+      } else {
+        userMarker = L.marker([lat, lng]).addTo(map).bindPopup("Selected Location").openPopup();
+      }
+  
+      userMarker._latlng = [lat, lng];  // store custom user location for Find Nearest
+    });
+  
+    // Show all drivers
+    drivers.forEach(driver => {
+      if (driver.node && coords[driver.node]) {
+        L.marker(coords[driver.node])
+          .addTo(map)
+          .bindPopup("Driver: " + driver.name);
+      }
+    });
+  
+    window.findNearest = function () {
+      if (!userMarker) {
+        alert("Please click on the map to set your location.");
+        return;
+      }
+  
+      const userLatLng = userMarker.getLatLng();
+      let nearest = null;
+      let minDist = Infinity;
+  
+      drivers.forEach(driver => {
+        const driverLatLng = coords[driver.node];
+        if (!driverLatLng) return;
+  
+        const dist = L.latLng(userLatLng).distanceTo(driverLatLng);
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = driver;
+        }
+      });
+  
+      if (nearest) {
+        document.getElementById("nearest").innerText =
+          `Nearest driver: ${nearest.name} (${Math.round(minDist)} meters)`;
+  
+        L.polyline([userLatLng, coords[nearest.node]], {
+          color: 'blue',
+          weight: 4,
+          opacity: 0.9
+        }).addTo(map);
+  
+        // Send request
+        fetch('/request-ride', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ driver_email: nearest.email })
+        });
+      } else {
+        document.getElementById("nearest").innerText = "No drivers found.";
+      }
+    };
+  
+    setTimeout(() => map.invalidateSize(), 300);
+  });
+  </script>
+  
+  
+{% endblock %}

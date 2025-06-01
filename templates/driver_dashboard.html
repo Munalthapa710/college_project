@@ -1,0 +1,108 @@
+{% extends 'driver_base.html' %}
+{% block content %}
+<h2>Welcome, {{ driver.name }}</h2>
+
+<div class="map-wrapper">
+  <div class="map-container">
+    <div id="map"></div>
+  </div>
+</div>
+
+<h3>Pending Requests</h3>
+<div id="requests">
+  {% for req in pending_requests %}
+    <div style="margin: 10px 0; padding: 10px; border: 1px solid #ccc;">
+      <p><strong>User:</strong> {{ req.user_email }}<br>
+         <strong>Time:</strong> {{ req.timestamp }}</p>
+      <button onclick="respondRequest('{{ req.id }}', 'accepted')">Accept</button>
+      <button onclick="respondRequest('{{ req.id }}', 'rejected')">Reject</button>
+    </div>
+  {% endfor %}
+</div>
+
+<style>
+  .map-wrapper {
+    display: flex;
+    justify-content: center;
+    padding: 0 40px;
+  }
+  .map-container {
+    width: 100%;
+    max-width: 1000px;
+    height: 500px;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 0 8px rgba(0,0,0,0.1);
+  }
+  #map {
+    width: 100%;
+    height: 100%;
+  }
+</style>
+
+<!-- Leaflet CSS & JS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script type="">
+  document.addEventListener("DOMContentLoaded", function () {
+    const coords = {{ coords | tojson | safe }};
+    const users = {{ users | tojson | safe }};
+    const pendingRequests = {{ pending_requests | tojson | safe }};
+    const driverNode = "{{ driver.node }}";
+  
+    const map = L.map('map').setView(coords[driverNode], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+  
+    // Driver marker
+    L.marker(coords[driverNode])
+      .addTo(map)
+      .bindPopup("You are here")
+      .openPopup();
+  
+    // Show route to first pending request user
+    if (pendingRequests.length > 0) {
+      const userEmail = pendingRequests[0].user_email;
+      const user = users.find(u => u.email === userEmail);
+  
+      if (user && user.node && coords[user.node]) {
+        const userLatLng = coords[user.node];
+        L.marker(userLatLng).addTo(map).bindPopup("Pending User: " + user.name);
+  
+        L.polyline([
+          coords[driverNode],
+          userLatLng
+        ], {
+          color: 'blue',
+          weight: 4,
+          opacity: 0.9
+        }).addTo(map);
+      }
+    }
+  
+    setTimeout(() => map.invalidateSize(), 300);
+  });
+  </script>
+  
+
+<script>
+function respondRequest(requestId, action) {
+  const url = action === 'accepted' ? '/accept-request' : '/reject-request';
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: requestId })
+  }).then(res => {
+    if (res.ok) {
+      location.reload();
+    } else {
+      alert("Failed to update request.");
+    }
+  });
+}
+</script>
+{% endblock %}

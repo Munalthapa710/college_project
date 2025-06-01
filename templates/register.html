@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Register</title>
+    <style>
+        .driver-only {
+            display: none;
+            margin-top: 10px;
+        }
+    </style>
+    <script>
+        function toggleRoleFields() {
+            const role = document.getElementById("role").value;
+            const driverFields = document.querySelectorAll(".driver-only");
+
+            driverFields.forEach(field => {
+                field.style.display = (role === "driver") ? "block" : "none";
+            });
+        }
+
+        window.onload = toggleRoleFields;
+    </script>
+</head>
+<body>
+    <h2>Register</h2>
+    <form method="POST" action="/register">
+        <label for="role">Role:</label>
+        <select name="role" id="role" onchange="toggleRoleFields()">
+            <option value="user">User</option>
+            <option value="driver">Driver</option>
+        </select><br><br>
+
+        Name: <input name="name" required><br>
+        Email: <input name="email" required><br>
+        Phone: <input name="phone" required><br>
+        Password: <input name="password" type="password" required><br>
+        Confirm Password: <input name="confirm_password" type="password" required><br>
+
+        <div class="driver-only">
+            Vehicle Type: <input name="vehicle"><br>
+            Location Node:
+            <select name="node">
+                {% for node in nodes %}
+                    <option value="{{ node }}">{{ node }}</option>
+                {% endfor %}
+            </select><br>
+        </div>
+
+        <br><button type="submit">Register</button>
+    </form>
+
+    <p>Already have an account? <a href="/login">Login</a></p>
+</body>
+</html>
