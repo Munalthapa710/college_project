@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign up - Emergency vehicle tracker</title>
+    <title>Sign up - EVTS</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Grand+Hotel&display=swap" rel="stylesheet">
@@ -11,16 +11,11 @@
         function toggleRoleFields() {
             const role = document.getElementById("role").value;
             const driverFields = document.getElementById("driver-specific-fields");
-            // const userLocationFields = document.getElementById("user-location-fields"); // No longer needed for user reg
-
             if (driverFields) {
                 driverFields.style.display = (role === "driver") ? "block" : "none";
             }
-            // if (userLocationFields) { // No longer needed for user reg
-            //     userLocationFields.style.display = (role === "user") ? "block" : "none";
-            // }
         }
-        window.onload = toggleRoleFields; // Call on page load
+        window.onload = toggleRoleFields;
     </script>
 </head>
 <body>
@@ -29,56 +24,31 @@
             <div class="login-wrapper">
                 <div class="login-box register-box">
                     <h1 class="login-logo">Emergency vehicle tracker</h1>
-
                     <form method="POST" action="{{ url_for('register') }}">
                         <div class="form-group">
-                            <label for="role" class="sr-only">Role:</label>
                             <select name="role" id="role" class="role-select" onchange="toggleRoleFields()">
                                 <option value="user">User</option>
                                 <option value="driver">Driver</option>
                             </select>
                         </div>
-
-                        <div class="form-group">
-                            <input type="text" name="name" id="name" placeholder="Full Name" required>
-                        </div>
-                        <div class="form-group">
-                            <input type="email" name="email" id="email" placeholder="Email" required>
-                        </div>
-                        <div class="form-group">
-                            <input type="tel" name="phone" id="phone" placeholder="Phone Number" required>
-                        </div>
-                        <div class="form-group">
-                            <input type="password" name="password" id="password" placeholder="Password" required>
-                        </div>
-                        <div class="form-group">
-                            <input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm Password" required>
-                        </div>
-
-                        <!-- Driver Specific Fields -->
+                        <div class="form-group"><input type="text" name="name" placeholder="Full Name" required></div>
+                        <div class="form-group"><input type="email" name="email" placeholder="Email" required></div>
+                        <div class="form-group"><input type="tel" name="phone" placeholder="Phone Number" required></div>
+                        <div class="form-group"><input type="password" name="password" placeholder="Password" required></div>
+                        <div class="form-group"><input type="password" name="confirm_password" placeholder="Confirm Password" required></div>
                         <div id="driver-specific-fields" style="display: none;"> 
+                            <div class="form-group"><input type="text" name="vehicle" placeholder="Vehicle (e.g., Ambulance)"></div>
                             <div class="form-group">
-                                <input type="text" name="vehicle" id="vehicle" placeholder="Vehicle Type (e.g., Ambulance, Fire Truck)">
-                            </div>
-                            <div class="form-group">
-                                <label for="node" class="sr-only">Initial Location Node:</label>
-                                <select name="node" id="node" class="role-select">
-                                    <option value="" disabled selected>Select Initial Location Node</option>
-                                    {% for node_key in nodes %}
-                                        <option value="{{ node_key }}">{{ node_key }}</option>
-                                    {% endfor %}
+                                <select name="node" class="role-select">
+                                    <option value="" disabled selected>Driver's Initial Node</option>
+                                    {% for node_key in nodes %}<option value="{{ node_key }}">{{ node_key }}</option>{% endfor %}
                                 </select>
                             </div>
                         </div>
-                        
-                        <!-- User location is now set via map on their dashboard -->
-
                         <button type="submit" class="btn-login">Sign up</button>
                     </form>
                 </div>
-                <div class="signup-box">
-                    <p>Have an account? <a href="{{ url_for('login') }}">Log in</a></p>
-                </div>
+                <div class="signup-box"><p>Have an account? <a href="{{ url_for('login') }}">Log in</a></p></div>
             </div>
         </main>
     </div>
