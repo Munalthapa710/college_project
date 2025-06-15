@@ -11,7 +11,7 @@
         <a href="{{ url_for('driver_home') }}" class="nav-brand">EVTS Driver</a>
         <div class="nav-links">
             <a href="{{ url_for('driver_home') }}">Home</a>
-            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('dashboard') }}">Dashboard</a> {/* Corrected from user_dashboard to dashboard */}
             <a href="{{ url_for('driver_history') }}">History</a>
             <a href="{{ url_for('driver_about') }}">About Us</a>
             <a href="{{ url_for('logout') }}">Logout</a>
@@ -20,5 +20,23 @@
     <div class="dashboard-content">
         {% block content %}{% endblock %}
     </div>
+
+    {# ------- ADD THIS SCRIPT BLOCK FOR BACK BUTTON/BFCACHE HANDLING ------- #}
+    <script type="text/javascript">
+        window.addEventListener('pageshow', function(event) {
+            // event.persisted is true if the page is from bfcache (back/forward cache)
+            if (event.persisted) {
+                console.log("[BASE TEMPLATE] Page loaded from bfcache. Forcing reload.");
+                window.location.reload();
+            }
+        });
+
+     
+        window.addEventListener('unload', function() {
+            // No specific action needed here.
+        });
+        console.log("[BASE TEMPLATE] Client-side cache prevention script loaded.");
+    </script>
+    {# ------- END OF ADDED SCRIPT BLOCK ------- #}
 </body>
 </html>
