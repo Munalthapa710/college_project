@@ -1,6 +1,4 @@
-# dijkstra.py
 import heapq
-
 def dijkstra(graph, start_node, end_node):
     if start_node not in graph or end_node not in graph or not graph.get(start_node):
         return float('inf')
