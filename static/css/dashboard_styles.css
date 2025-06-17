@@ -1,27 +1,35 @@
+/* static/css/dashboard_styles.css */
+/* --- General Page Setup & Typography --- */
  body {
      font-family: 'Roboto', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
      margin: 0;
      background-color: #f4f7f6;
-    /* Light grey background for the page */
      color: #333;
      line-height: 1.6;
 }
-
+/* --- Navigation Bar Styling --- */
  nav.navbar {
-     padding: 0.8rem 1.5rem;
+     padding: 0.7rem 1.5rem;
      color: white;
+    /* Default text color for navbar items if not overridden */
      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
      display: flex;
-     justify-content: space-between;
-    /* Aligns items to start and end */
+     
      align-items: center;
+     position: relative;
+     z-index: 1001;
 }
  nav.navbar .nav-brand {
-    /* For a potential logo/site name */
-     font-size: 1.5em;
+     font-size: 1.4em;
      font-weight: bold;
      color: white;
      text-decoration: none;
+     
+}
+ nav.navbar .nav-links {
+     display: flex;
+     align-items: center;
+     margin-left: auto;
 }
  nav.navbar .nav-links a {
      color: white;
@@ -30,30 +38,26 @@
      padding: 8px 12px;
      border-radius: 4px;
      transition: background-color 0.2s ease-in-out;
+     font-size: 0.95em;
 }
  nav.navbar .nav-links a:hover, nav.navbar .nav-links a.active {
-    /* Add 'active' class to current page link if needed */
-     background-color: rgba(255, 255, 255, 0.2);
+     background-color: rgba(255, 255, 255, 0.993);
 }
-
+/* User Dashboard Navbar Specific */
  nav.user-navbar {
      background-color: #007bff;
-   
 }
-
+/* Driver Dashboard Navbar Specific */
  nav.driver-navbar {
      background-color: #343a40;
-    /* Dark Grey/Blue */
 }
 /* --- Main Content Area --- */
  .dashboard-content {
      padding: 25px;
      max-width: 1200px;
-    /* Max width for content, centered */
      margin: 0 auto;
-    /* Centering the content block */
 }
- .dashboard-content h2, .dashboard-content h3, .dashboard_content h4 {
+ .dashboard-content h2, .dashboard-content h3, .dashboard-content h4 {
      color: #333;
      margin-top: 0;
 }
@@ -63,11 +67,9 @@
 /* --- Map Styling --- */
  .map-wrapper-fullwidth {
      width: 100%;
-    /* Takes full width of its parent (.dashboard-content) */
      margin-top: 20px;
      margin-bottom: 25px;
      background-color: #e9ecef;
-    /* Light background for map area */
      border: 1px solid #ced4da;
      border-radius: 8px;
      box-shadow: 0 0 10px rgba(0,0,0,0.05);
@@ -75,14 +77,10 @@
  .map-container-inner {
      width: 100%;
      height: 500px;
-    /* Or your preferred height */
      border-radius: 7px;
-    /* Inner radius to match wrapper if border is thick */
      overflow: hidden;
-    /* Ensures map tiles stay within rounded corners */
 }
  #map {
-    /* The actual Leaflet map div */
      width: 100%;
      height: 100%;
 }
@@ -109,25 +107,21 @@
      cursor: not-allowed;
      box-shadow: none;
 }
-/* Specific button colors */
  button.btn-confirm, .button-style.btn-confirm {
      background-color: #28a745;
 }
-/* Green */
  button.btn-confirm:hover, .button-style.btn-confirm:hover {
      background-color: #1e7e34;
 }
  button.btn-cancel, .button-style.btn-cancel {
      background-color: #dc3545;
 }
-/* Red */
  button.btn-cancel:hover, .button-style.btn-cancel:hover {
      background-color: #c82333;
 }
  button.btn-secondary, .button-style.btn-secondary {
      background-color: #6c757d;
 }
-/* Grey */
  button.btn-secondary:hover, .button-style.btn-secondary:hover {
      background-color: #545b62;
 }
@@ -148,7 +142,6 @@
      padding: 15px;
      border: 1px solid #bee5eb;
      background-color: #d1ecf1;
-    /* Light cyan for general notifications */
      color: #0c5460;
      border-radius: 5px;
      text-align: center;
@@ -193,3 +186,183 @@
  #requests .request-item button:last-child {
      margin-right: 0;
 }
+/* --- Profile Edit Form Specific Styles --- */
+ .profile-edit-form {
+     max-width: 600px;
+     margin: 30px auto;
+     padding: 25px 30px;
+     background-color: #ffffff;
+     border-radius: 8px;
+     box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+     border: 1px solid #e0e0e0;
+}
+ .profile-edit-form .form-group {
+     margin-bottom: 20px;
+}
+ .profile-edit-form label {
+     display: block;
+     margin-bottom: 8px;
+     font-weight: 500;
+     color: #495057;
+}
+ .profile-edit-form .form-control {
+     width: 100%;
+     padding: 10px 12px;
+     border: 1px solid #ced4da;
+     border-radius: 6px;
+     box-sizing: border-box;
+     font-size: 1em;
+     color: #495057;
+     background-color: #f8f9fa;
+}
+ .profile-edit-form .form-control:focus {
+     border-color: #007bff;
+     outline: 0;
+     box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+     background-color: #fff;
+}
+ .profile-edit-form .form-control[readonly] {
+     background-color: #e9ecef;
+     cursor: not-allowed;
+}
+ .profile-edit-form hr {
+     margin-top: 25px;
+     margin-bottom: 25px;
+     border: 0;
+     border-top: 1px solid #eee;
+}
+ .profile-edit-form .flashes {
+     list-style-type: none;
+     padding: 0;
+     margin-bottom: 20px;
+}
+ .profile-edit-form .flashes li {
+     padding: 12px 18px;
+     margin-bottom: 10px;
+     border-radius: 5px;
+     color: #fff;
+     font-weight:500;
+}
+ .profile-edit-form .flashes li.success {
+     background-color: #28a745;
+}
+ .profile-edit-form .flashes li.error {
+     background-color: #dc3545;
+}
+ .profile-edit-form .flashes li.info {
+     background-color: #17a2b8;
+}
+ .profile-edit-form .flashes li.warning {
+     background-color: #ffc107;
+     color: #212529;
+}
+/* --- Navbar Profile Dropdown --- */
+.navbar-profile {
+    position: relative; 
+  
+    display: flex; 
+    align-items: center; 
+    margin-left: 20px;
+}
+
+.profile-image-clickable {
+    cursor: pointer;
+    padding: 6px 10px; 
+    border-radius: 50%; 
+    transition: background-color 0.2s ease;
+    display: inline-flex; 
+    align-items: center;
+    justify-content: center;
+}
+.profile-image-clickable:hover {
+    background-color: rgba(255, 255, 255, 0.1); 
+}
+
+/* --- MOST AGGRESSIVE ICON STYLING FOR NAVBAR TRIGGER --- */
+/* Target specific Font Awesome classes if you know them, e.g., .fa-user-circle */
+nav.navbar .navbar-profile .profile-image-clickable i.fas, 
+nav.navbar .navbar-profile .profile-image-clickable i.far { 
+    font-size: 1.7em !important; /* Slightly larger to ensure visibility */
+    line-height: 1 !important; 
+    color: #FFFFFF !important; /* Hex for white, very explicit */
+    background: none !important; /* Ensure no background on the icon itself */
+    -webkit-font-smoothing: antialiased; 
+    -moz-osx-font-smoothing: grayscale; 
+    /* The following targets the actual icon character if FA uses ::before */
+    /* You might not need both, but this is for maximum override */
+    text-shadow: none !important; /* Remove any text shadows */
+}
+
+/* If FontAwesome uses ::before for the icon character, try styling that too */
+nav.navbar .navbar-profile .profile-image-clickable i.fas::before,
+nav.navbar .navbar-profile .profile-image-clickable i.far::before {
+    color: #FFFFFF !important; /* Make the pseudo-element character white */
+    background: none !important;
+}
+/* --- END OF AGGRESSIVE ICON STYLING --- */
+
+
+.profile-dropdown {
+    display: none; 
+    position: absolute;
+    top: calc(100% + 8px); 
+    right: 0;
+    background-color: white;
+    min-width: 240px; 
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12); 
+    border-radius: 6px; 
+    z-index: 1050; 
+    border: 1px solid #e7eaf3; 
+    overflow: hidden; 
+}
+
+.profile-dropdown.show { display: block; }
+
+.dropdown-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    gap: 12px; 
+}
+.dropdown-profile-icon-wrapper {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; 
+    border-radius: 50%;
+    background-color: #e9ecef; 
+    color: #495057; 
+}
+.dropdown-profile-icon-wrapper .fas,
+.dropdown-profile-icon-wrapper .far {
+    font-size: 1.5em; 
+}
+
+.dropdown-user-info { display: flex; flex-direction: column; }
+.dropdown-user-info span { font-weight: 600; color: #333; font-size: 0.95em; line-height: 1.3; }
+.dropdown-user-info small { color: #6c757d; font-size: 0.8em; line-height: 1.3;}
+
+.profile-dropdown .dropdown-item {
+    display: flex; align-items: center; gap: 10px; 
+    padding: 10px 16px; 
+    text-decoration: none; color: #343a40; font-size: 0.9em;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    white-space: nowrap; 
+}
+.profile-dropdown .dropdown-item i.fas,
+.profile-dropdown .dropdown-item i.far { 
+    width: 16px; text-align: center; color: #868e96; font-size: 1em; 
+}
+.profile-dropdown .dropdown-item:hover { background-color: #f1f3f5; color: #000; }
+.profile-dropdown .dropdown-item:hover i.fas,
+.profile-dropdown .dropdown-item:hover i.far { color: #343a40; }
+
+.dropdown-divider
+ { height: 1px;
+      margin: 6px 0;
+       background-color: #e9ecef; }
+
+.profile-dropdown .logout-item 
+{ color: #d9534f; }
+.profile-dropdown .logout-item:hover { background-color: #f8d7da; color: #721c24; }
+.profile-dropdown .logout-item:hover i.fas,
+.profile-dropdown .logout-item:hover i.far { color: #721c24; }

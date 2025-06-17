@@ -1,8 +1,8 @@
-from flask import Flask, render_template, request, redirect, session, jsonify, make_response, url_for # Added make_response, url_for
+from flask import Flask, render_template, request, redirect, session, jsonify, make_response, url_for, flash # Added flash
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timezone
 import pytz
-from functools import wraps # For decorators
+from functools import wraps 
 from dijkstra import dijkstra, shortest_path 
 from graph_with_coords import graph, coordinates 
 import os
@@ -299,9 +299,10 @@ def driver_home():
     return add_no_cache_to_response(response)
 
 @app.route('/user-about')
-@login_required_user
+@login_required_user # Assuming you have this decorator
 def user_about(): 
-    response = make_response(render_template('user_about.html'))
+    user = User.query.get(session.get('user')) # Fetch the current user
+    response = make_response(render_template('user_about.html', user=user)) # Pass user to template
     return add_no_cache_to_response(response)
 
 @app.route('/driver-about')
@@ -327,12 +328,130 @@ def driver_history():
                'status': r.status, 'timestamp': format_datetime_npt(r.timestamp)} for r in reqs_db]
     response = make_response(render_template('driver_history.html', requests=s_reqs))
     return add_no_cache_to_response(response)
+@app.route('/your-driver-route')
+@login_required_driver
+def your_driver_route_function():
+    driver = Driver.query.get(session.get('driver'))
+    if not driver: # Add this check just in case, though decorator should catch session issues
+        flash("Driver information not found for this session.", "error")
+        session.clear()
+        return redirect(url_for('login'))
+    
+    # ... any other logic for this specific route ...
 
+    # Ensure 'driver' is passed here
+    response = make_response(render_template('the_driver_template.html', driver=driver ))
+    return add_no_cache_to_response(response)
 @app.route('/logout')
 def logout(): 
     session.clear()
     response = make_response(redirect(url_for('login')))
     return add_no_cache_to_response(response) # Also apply to the redirect itself
+
+@app.route('/edit-user-profile', methods=['GET', 'POST'])
+@login_required_user
+def edit_user_profile():
+    user = User.query.get(session['user'])
+    if not user: # Should be caught by decorator, but good practice
+        flash('User not found.', 'error')
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        # Get data from form
+        new_name = request.form.get('name', '').strip()
+        new_phone = request.form.get('phone', '').strip()
+        new_password = request.form.get('new_password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+
+        # Update name and phone if provided and different
+        if new_name and new_name != user.name:
+            user.name = new_name
+            flash('Name updated successfully.', 'success')
+        
+        if new_phone and new_phone != user.phone:
+            # TODO: Add phone number validation if needed
+            user.phone = new_phone
+            flash('Phone number updated successfully.', 'success')
+
+        # Update password if new password is provided and matches confirmation
+        if new_password:
+            if new_password == confirm_password:
+                # In a real app, you would HASH this new_password before saving
+                # For example: user.password = generate_password_hash(new_password)
+                user.password = new_password 
+                flash('Password updated successfully.', 'success')
+            else:
+                flash('New passwords do not match. Password not updated.', 'error')
+        
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error updating user profile: {e}")
+            flash('Error updating profile. Please try again.', 'error')
+        
+        return redirect(url_for('edit_user_profile')) # Redirect back to profile page to see changes/errors
+
+    response = make_response(render_template('edit_user_profile.html', user=user, title="Edit Your Profile"))
+    return add_no_cache_to_response(response)
+
+
+@app.route('/edit-driver-profile', methods=['GET', 'POST'])
+@login_required_driver
+def edit_driver_profile():
+    driver = Driver.query.get(session['driver'])
+    if not driver:
+        flash('Driver not found.', 'error')
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        new_name = request.form.get('name', '').strip()
+        new_phone = request.form.get('phone', '').strip()
+        new_vehicle = request.form.get('vehicle', '').strip()
+        # Driver node changes might need more complex logic/validation if it impacts active operations
+        # For now, let's assume node is not changed here, or if it is, it's a valid node from `coordinates`.
+        new_node = request.form.get('node') 
+        new_password = request.form.get('new_password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+
+        if new_name and new_name != driver.name:
+            driver.name = new_name
+            flash('Name updated.', 'success')
+        
+        if new_phone and new_phone != driver.phone:
+            driver.phone = new_phone
+            flash('Phone updated.', 'success')
+
+        if new_vehicle and new_vehicle != driver.vehicle:
+            driver.vehicle = new_vehicle
+            flash('Vehicle updated.', 'success')
+        
+        if new_node and new_node != driver.node and new_node in coordinates:
+            driver.node = new_node
+            flash('Location Node updated.', 'success')
+        elif new_node and new_node != driver.node and new_node not in coordinates:
+            flash('Invalid Location Node selected. Node not updated.', 'error')
+
+
+        if new_password:
+            if new_password == confirm_password:
+                driver.password = new_password # HASH this in real app
+                flash('Password updated.', 'success')
+            else:
+                flash('New passwords do not match. Password not updated.', 'error')
+        
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error updating driver profile: {e}")
+            flash('Error updating profile.', 'error')
+        
+        return redirect(url_for('edit_driver_profile'))
+
+    response = make_response(render_template('edit_driver_profile.html', driver=driver, nodes=coordinates.keys(), title="Edit Driver Profile"))
+    return add_no_cache_to_response(response)
+
 
 if __name__ == '__main__':
     with app.app_context():

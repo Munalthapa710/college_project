@@ -63,33 +63,7 @@
     /* Muted grey for tagline */
      margin-top: 0;
 }
-/* Optional Google Sign-in Button */
- .btn-social-google {
-     display: flex;
-     align-items: center;
-     justify-content: center;
-     width: 100%;
-     padding: 12px;
-     background-color: #F0FDF4;
-    /* Very light green, like the example */
-     border: 1px solid #D1FAE5;
-     border-radius: 8px;
-     font-size: 1em;
-     font-weight: 500;
-     color: #065F46;
-    /* Darker green text */
-     cursor: pointer;
-     transition: background-color 0.2s ease;
-     margin-bottom: 25px;
-}
- .btn-social-google img {
-     width: 20px;
-     height: 20px;
-     margin-right: 10px;
-}
- .btn-social-google:hover {
-     background-color: #D1FAE5;
-}
+
 /* Separator "Or sign in with E-mail" */
  .auth-separator {
      display: flex;
@@ -307,3 +281,61 @@
          font-size: 1em;
     }
 }
+/* static/css/dashboard_styles.css - Add these or integrate with existing form styles */
+
+.profile-edit-form {
+    max-width: 600px;
+    margin: 30px auto;
+    padding: 25px 30px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e0e0e0;
+}
+
+.profile-edit-form .form-group {
+    margin-bottom: 20px;
+}
+
+.profile-edit-form label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #495057;
+}
+
+.profile-edit-form .form-control { /* Common class for inputs/selects in this form */
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 1em;
+    color: #495057;
+    background-color: #f8f9fa;
+}
+.profile-edit-form .form-control:focus {
+    border-color: #007bff; /* Or your theme's primary color */
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    background-color: #fff;
+}
+.profile-edit-form .form-control[readonly] {
+    background-color: #e9ecef;
+    cursor: not-allowed;
+}
+
+.profile-edit-form hr {
+    margin-top: 25px;
+    margin-bottom: 25px;
+    border: 0;
+    border-top: 1px solid #eee;
+}
+
+/* Flashes styling (if not already globally styled well) */
+.flashes { list-style-type: none; padding: 0; margin-bottom: 20px;}
+.flashes li { padding: 12px 18px; margin-bottom: 10px; border-radius: 5px; color: #fff; font-weight:500; }
+.flashes li.success { background-color: #28a745; } /* Green */
+.flashes li.error { background-color: #dc3545; }   /* Red */
+.flashes li.info { background-color: #17a2b8; }    /* Teal/Info Blue */
+.flashes li.warning { background-color: #ffc107; color: #212529; } /* Yellow */

@@ -1,0 +1,57 @@
+
+<h2>Edit Driver Profile</h2>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <ul class="flashes"> {# Ensure this ul has the class="flashes" #}
+    {% for category, message in messages %}
+      <li class="{{ category }}">
+        {{ message }}
+      </li>
+    {% endfor %}
+    </ul>
+  {% endif %}
+{% endwith %}
+
+<form method="POST" action="{{ url_for('edit_driver_profile') }}" class="profile-edit-form">
+    {# ... rest of your form for driver ... #}
+    <div class="form-group">
+        <label for="email">Email (Cannot be changed)</label>
+        <input type="email" id="email" name="email" value="{{ driver.email }}" class="form-control" readonly>
+    </div>
+    <div class="form-group">
+        <label for="name">Full Name</label>
+        <input type="text" id="name" name="name" value="{{ driver.name }}" class="form-control" required>
+    </div>
+    <div class="form-group">
+        <label for="phone">Phone Number</label>
+        <input type="tel" id="phone" name="phone" value="{{ driver.phone }}" class="form-control" required>
+    </div>
+    <div class="form-group">
+        <label for="vehicle">Vehicle Type/ID</label>
+        <input type="text" id="vehicle" name="vehicle" value="{{ driver.vehicle }}" class="form-control" required>
+    </div>
+    <div class="form-group">
+        <label for="node">Current Location Node</label>
+        <select id="node" name="node" class="form-control">
+            {% for node_key in nodes %}
+            <option value="{{ node_key }}" {% if driver.node == node_key %}selected{% endif %}>
+                {{ node_key }}
+            </option>
+            {% endfor %}
+        </select>
+         <small class="form-text text-muted">Changing your node updates your current operational base.</small>
+    </div>
+    <hr style="margin: 20px 0;">
+    <h4 style="margin-bottom:15px;">Change Password</h4>
+    <div class="form-group">
+        <label for="new_password">New Password</label>
+        <input type="password" id="new_password" name="new_password" class="form-control" placeholder="Enter new password">
+    </div>
+    <div class="form-group">
+        <label for="confirm_password">Confirm New Password</label>
+        <input type="password" id="confirm_password" name="confirm_password" class="form-control" placeholder="Confirm new password">
+    </div>
+    <button type="submit" class="button-style btn-confirm" style="margin-top: 20px; width: 100%;">Update Profile</button>
+</form>
+{% endblock %}
