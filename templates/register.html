@@ -4,23 +4,43 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up - Emergency Vehicle Tracker</title>
+    {# Ensure Poppins font is linked BEFORE your custom style.css #}
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"> 
     <script>
         function toggleRoleFields() {
             const role = document.getElementById("role").value;
             const driverFields = document.getElementById("driver-specific-fields");
+            const vehicleInput = document.getElementById("vehicle"); // Get vehicle input
+            const nodeSelect = document.getElementById("node_driver_register"); // Get node select
+
             if (driverFields) {
-                driverFields.style.display = (role === "driver") ? "block" : "none";
+                if (role === "driver") {
+                    driverFields.style.display = "block";
+                    if (vehicleInput) vehicleInput.required = true; // Make required when visible
+                    if (nodeSelect) nodeSelect.required = true;   // Make required when visible
+                } else {
+                    driverFields.style.display = "none";
+                    if (vehicleInput) vehicleInput.required = false; // Not required when hidden
+                    if (nodeSelect) nodeSelect.required = false;  // Not required when hidden
+                }
             }
         }
-        window.onload = toggleRoleFields;
+        window.onload = function() {
+            // Set selected role based on form_data if it exists (from failed validation attempt)
+            const selectedRole = "{{ form_data.get('role', 'user') }}"; 
+            const roleSelect = document.getElementById('role');
+            if (roleSelect) {
+                roleSelect.value = selectedRole;
+            }
+            toggleRoleFields(); // Call on page load to set initial visibility and required status
+        };
     </script>
 </head>
 <body>
-    <div class="auth-container">
-        <div class="auth-form-section">
-            <div class="auth-form-wrapper">
+    <div class="auth-container"> 
+        <div class="auth-form-section"> 
+            <div class="auth-form-wrapper"> 
                 <div class="logo-container">
                     <h1 class="auth-logo">EVTS</h1>
                     <p class="logo-tagline">Create Your Account</p>
@@ -28,9 +48,11 @@
 
                 {% with messages = get_flashed_messages(with_categories=true) %}
                   {% if messages %}
-                    <ul class="flashes">
+                    <ul class="flashes"> {# Ensure this ul has the class="flashes" #}
                     {% for category, message in messages %}
-                      <li class="{{ category }}">{{ message }}</li>
+                      <li class="{{ category }} auth-flash-{{category}}">
+                          {{ message }}
+                      </li>
                     {% endfor %}
                     </ul>
                   {% endif %}
@@ -40,57 +62,66 @@
                     <div class="form-group">
                         <label for="role">I am a:</label>
                         <select name="role" id="role" class="role-select" onchange="toggleRoleFields()">
-                            <option value="user">User</option>
-                            <option value="driver">Driver / Emergency Personnel</option>
+                            <option value="user" {% if form_data.get('role', 'user') == 'user' %}selected{% endif %}>User</option>
+                            <option value="driver" {% if form_data.get('role') == 'driver' %}selected{% endif %}>Driver / Emergency Personnel</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="name">Full Name</label>
-                        <input type="text" name="name" id="name" placeholder="Enter your name" required>
+                        <input type="text" name="name" id="name" placeholder="Enter your name" value="{{ form_data.get('name', '') }}" 
+                               required minlength="2" maxlength="100">
                     </div>
                     <div class="form-group">
                         <label for="email">Email</label>
-                        <input type="email" name="email" id="email" placeholder="your@email.com" required>
+                        <input type="email" name="email" id="email" placeholder="Enter your email" value="{{ form_data.get('email', '') }}" 
+                               required>
                     </div>
                     <div class="form-group">
                         <label for="phone">Phone Number</label>
-                        <input type="tel" name="phone" id="phone" placeholder="+977" required>
+                        <input type="tel" name="phone" id="phone" placeholder="+977" value="{{ form_data.get('phone', '') }}" 
+                               required pattern="^\+?[\d\s\-()]{10,10}$"
+                               title="Enter a valid phone number .">
                     </div>
                     <div class="form-group">
                         <label for="password">Password</label>
-                        <input type="password" name="password" id="password" placeholder="Minimum 8 characters" required>
+                        <input type="password" name="password" id="password" placeholder="Minimum 8 characters" 
+                               required minlength="8">
                     </div>
                     <div class="form-group">
                         <label for="confirm_password">Confirm Password</label>
-                        <input type="password" name="confirm_password" id="confirm_password" placeholder="Re-enter password" required>
+                        <input type="password" name="confirm_password" id="confirm_password" placeholder="Re-enter password" 
+                               required>
                     </div>
 
                     <div id="driver-specific-fields" style="display: none;"> 
                         <div class="form-group">
                             <label for="vehicle">Vehicle Type/ID</label>
-                            <input type="text" name="vehicle" id="vehicle" placeholder="e.g., Ambulance Unit 101">
+                            <input type="text" name="vehicle" id="vehicle" placeholder="e.g., Ambulance Unit 101" 
+                                   value="{{ form_data.get('vehicle', '') }}" 
+                                   minlength="2" maxlength="50"> {# required is set by JS #}
                         </div>
                         <div class="form-group">
-                            <label for="node">Initial Station/Node</label>
-                            <select name="node" id="node" class="role-select">
-                                <option value="" disabled selected>Select Initial Station/Node</option>
+                            <label for="node_driver_register">Initial Station/Node</label> {# Changed id for uniqueness #}
+                            <select name="node" id="node_driver_register" class="role-select">
+                                <option value="" disabled {% if not form_data.get('node') %}selected{% endif %}>Select Initial Station/Node</option>
                                 {% for node_key in nodes %}
-                                    <option value="{{ node_key }}">{{ node_key }}</option>
+                                    <option value="{{ node_key }}" {% if form_data.get('node') == node_key %}selected{% endif %}>{{ node_key }}</option>
                                 {% endfor %}
                             </select>
                         </div>
                     </div>
                     <button type="submit" class="btn-submit">Create Account</button>
                 </form>
+
                 <div class="auth-switch">
                     <p>Already have an account? <a href="{{ url_for('login') }}">Sign In</a></p>
                 </div>
-                 <p class="terms-text-footer" style="text-align: center; font-size: 0.8em; color: #888; margin-top: 20px;">
+                 <p class="terms-text-footer">
                     By creating an account, you agree to our <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.
                 </p>
             </div>
         </div>
-        <div class="auth-illustration-section">
+        <div class="auth-illustration-section">  
             <img src="{{ url_for('static', filename='images/img1.png') }}" alt="System Illustration">
         </div>
     </div>

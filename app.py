@@ -1,7 +1,8 @@
-from flask import Flask, render_template, request, redirect, session, jsonify, make_response, url_for, flash # Added flash
+from flask import Flask, render_template, request, redirect, session, jsonify, make_response, url_for, flash 
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timezone
 import pytz
+import re
 from functools import wraps 
 from dijkstra import dijkstra, shortest_path 
 from graph_with_coords import graph, coordinates 
@@ -84,37 +85,153 @@ def add_no_cache_to_response(response):
 @app.route('/')
 def home(): return redirect(url_for('login'))
 
-@app.route('/register', methods=['GET', 'POST']) # Public route
+@app.route('/register', methods=['GET', 'POST'])
 def register():
+    form_data_to_pass = {} 
     if request.method == 'POST':
-        role = request.form['role']; name = request.form['name']; email = request.form['email']
-        phone = request.form['phone']; password = request.form['password']; confirm = request.form['confirm_password']
-        if password != confirm: return 'Passwords do not match.'
-        if role == 'driver':
-            if Driver.query.get(email): return 'Driver email exists.'
-            vehicle = request.form['vehicle']; node = request.form.get('node')
-            if not node or node not in coordinates: return 'Driver needs valid node.'
-            db.session.add(Driver(email=email, name=name, phone=phone, password=password, vehicle=vehicle, node=node))
-        else:
-            if User.query.get(email): return 'User email exists.'
-            db.session.add(User(email=email, name=name, phone=phone, password=password, latitude=None, longitude=None))
-        try: db.session.commit(); return redirect(url_for('login'))
-        except Exception as e: db.session.rollback(); print(f"RegErr:{e}"); return "RegErr",500
-    return render_template('register.html', nodes=coordinates.keys())
+        role = request.form.get('role')
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip().lower()
+        phone = request.form.get('phone', '').strip()
+        password = request.form.get('password', '') 
+        confirm_password = request.form.get('confirm_password', '')
 
-@app.route('/login', methods=['GET', 'POST']) # Public route
+        form_data_to_pass = request.form.to_dict()
+        errors = []
+
+        # --- Enhanced Validation Checks ---
+        if not role:
+            errors.append("Role selection is required.")
+        if not name:
+            errors.append("Full Name is required.")
+        elif len(name) < 2 or len(name) > 100:
+            errors.append("Full Name must be between 2 and 100 characters.")
+
+        if not email:
+            errors.append("Email is required.")
+        # Basic regex for email validation (not foolproof, but better)
+        elif not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email):
+            errors.append("Invalid email format.")
+        
+        if not phone:
+            errors.append("Phone number is required.")
+        # Basic regex for phone: allows optional +, digits, hyphens, spaces, parentheses, min 7 digits
+        elif not re.match(r"^\+?[\d\s\-()]{7,20}$", phone):
+            errors.append("Invalid phone number format (e.g., +1234567890, 123-456-7890). Must be 7-20 digits/allowed characters.")
+        
+        if not password:
+            errors.append("Password is required.")
+        elif len(password) < 8:
+            errors.append("Password must be at least 8 characters long.")
+        # Example: Add password complexity check (e.g., one uppercase, one number)
+        # elif not re.search(r"[A-Z]", password) or not re.search(r"[0-9]", password):
+        #     errors.append("Password must include at least one uppercase letter and one number.")
+        
+        if password != confirm_password:
+            if password: 
+                 errors.append("Passwords do not match.")
+        
+        vehicle = "" 
+        node_from_form = "" 
+
+        if role == 'driver':
+            vehicle = request.form.get('vehicle', '').strip()
+            node_from_form = request.form.get('node') 
+            if not vehicle:
+                errors.append("Vehicle information is required for drivers.")
+            elif len(vehicle) < 2 or len(vehicle) > 50:
+                errors.append("Vehicle information must be between 2 and 50 characters.")
+
+            if not node_from_form:
+                errors.append("Driver's initial location node selection is required.")
+            elif node_from_form not in coordinates:
+                 errors.append(f"Invalid location node ('{node_from_form}') selected. Please choose from the list.")
+
+        if not errors: 
+            if role == 'driver':
+                if Driver.query.filter_by(email=email).first():
+                    errors.append(f"A driver account with the email '{email}' already exists.")
+            else: 
+                if User.query.filter_by(email=email).first():
+                    errors.append(f"A user account with the email '{email}' already exists.")
+        
+        if errors:
+            for error_msg in errors:
+                flash(error_msg, 'error')
+            return render_template('register.html', 
+                                   nodes=coordinates.keys(), 
+                                   form_data=form_data_to_pass)
+
+        
+        if role == 'driver':
+            new_entity = Driver(email=email, name=name, phone=phone, password=password, vehicle=vehicle, node=node_from_form) # Use hashed_password
+        else: 
+            new_entity = User(email=email, name=name, phone=phone, password=password, latitude=None, longitude=None) # Use hashed_password
+        
+        db.session.add(new_entity)
+        try: 
+            db.session.commit()
+            flash('Registration successful! Please log in.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e: 
+            db.session.rollback()
+            print(f"DATABASE COMMIT ERROR during registration: {e}")
+            flash(f"An unexpected error occurred: {str(e)[:100]}...", 'error') # Show a generic or truncated error
+            return render_template('register.html', nodes=coordinates.keys(), form_data=form_data_to_pass)
+
+    return render_template('register.html', nodes=coordinates.keys(), form_data={})
+
+@app.route('/login', methods=['GET', 'POST'])
 def login():
+    form_data_to_pass = {} # Initialize for GET request
     if request.method == 'POST':
-        role = request.form['role']; email = request.form['username']; password = request.form['password']
-        if role == 'driver':
-            driver = Driver.query.get(email)
-            if driver and driver.password == password: session['driver'] = driver.email; return redirect(url_for('dashboard'))
-        elif role == 'user':
-            user = User.query.get(email)
-            if user and user.password == password: session['user'] = user.email; return redirect(url_for('user_dashboard'))
-        return 'Invalid credentials.' 
-    return render_template('login.html')
+        role = request.form.get('role')
+        # Use .get with a default empty string and .strip() for safety
+        email = request.form.get('username', '').strip().lower() 
+        password = request.form.get('password', '')
 
+        # Store submitted data to pass back to template if login fails
+        form_data_to_pass = request.form.to_dict() 
+
+        # Basic validation for empty fields
+        if not email or not password or not role:
+            flash("All fields (Email, Password, Role) are required.", "error")
+            return render_template('login.html', form_data=form_data_to_pass)
+
+        login_successful = False
+        if role == 'driver':
+            driver = Driver.query.filter_by(email=email).first() # Query by normalized email
+            # IMPORTANT: In a real app, compare HASHED passwords
+            # if driver and check_password_hash(driver.password, password):
+            if driver and driver.password == password: 
+                session['driver'] = driver.email
+                flash(f'Welcome back, {driver.name}!', 'success')
+                login_successful = True
+                # Check for 'next' URL parameter if you implement redirection after login
+                # next_url = request.args.get('next')
+                # return redirect(next_url or url_for('dashboard'))
+                return redirect(url_for('dashboard'))
+        elif role == 'user':
+            user = User.query.filter_by(email=email).first() # Query by normalized email
+            # IMPORTANT: In a real app, compare HASHED passwords
+            # if user and check_password_hash(user.password, password):
+            if user and user.password == password: 
+                session['user'] = user.email
+                flash(f'Welcome back, {user.name}!', 'success')
+                login_successful = True
+                # next_url = request.args.get('next')
+                # return redirect(next_url or url_for('user_dashboard'))
+                return redirect(url_for('user_dashboard'))
+        
+        # If login was not successful after checking both roles
+        if not login_successful:
+            flash('Invalid email, password, or role. Please try again.', 'error')
+            # Re-render the login page with an error message and pre-filled email (but not password)
+            form_data_to_pass.pop('password', None) # Don't send password back
+            return render_template('login.html', form_data=form_data_to_pass)
+            
+    # For GET request, render the login page
+    return render_template('login.html', form_data=form_data_to_pass)
 # --- API-like routes (return JSON, no specific HTML cache headers needed here) ---
 @app.route('/set-user-current-location', methods=['POST'])
 @login_required_user
@@ -133,29 +250,73 @@ def set_user_current_location():
         try: db.session.commit(); return jsonify({'success': True, 'latitude': lat, 'longitude': lng, 'message': f'Location updated to ({lat:.6f}, {lng:.6f})'}), 200
         except Exception as e: db.session.rollback(); print(f"DB Err: {e}"); return jsonify({'error': 'DB err setting loc', 'success': False}), 500
     return jsonify({'error': 'User not found', 'success': False}), 404
-
 @app.route('/find-nearest-driver-dijkstra', methods=['POST'])
 @login_required_user
 def find_nearest_driver_dijkstra():
-    data = request.get_json();
-    if not data: return jsonify({'error': 'No JSON', 'success': False}), 400
+    # No need to check 'user' in session again due to @login_required_user
+    data = request.get_json()
+    if not data: 
+        return jsonify({'error': 'Invalid request: No JSON data received', 'success': False}), 400
+    
     user_closest_node = data.get('user_closest_node')
+    selected_vehicle_type = data.get('vehicle_type', "").strip().lower() # Get selected vehicle type, lowercase for case-insensitive compare
+
     if not user_closest_node or user_closest_node not in graph or user_closest_node not in coordinates:
-        return jsonify({'error': 'Invalid user_closest_node for Dijkstra.', 'success': False}), 400
-    available_drivers = Driver.query.filter(Driver.node.isnot(None), Driver.node.in_(graph.keys())).all()
-    nearest_driver_info = None; min_distance = float('inf')
-    if not available_drivers: return jsonify({'message': 'No drivers available or their nodes are not in routing graph.', 'success': True, 'nearest_driver': None})
+        return jsonify({'error': 'Invalid or missing user_closest_node for Dijkstra.', 'success': False}), 400
+    
+    # Start with drivers who have a valid node that is also present in the graph definition
+    driver_query = Driver.query.filter(Driver.node.isnot(None), Driver.node.in_(graph.keys()))
+
+    # Further filter by vehicle type if one is selected
+    if selected_vehicle_type:
+        # Using SQLAlchemy's func.lower for case-insensitive comparison on the database side if possible
+        # For SQLite, ilike is often case-insensitive by default for ASCII, but explicit lower is safer across DBs.
+        driver_query = driver_query.filter(db.func.lower(Driver.vehicle).contains(selected_vehicle_type))
+        # If you need exact match (case-insensitive):
+        # driver_query = driver_query.filter(db.func.lower(Driver.vehicle) == selected_vehicle_type)
+    
+    available_drivers = driver_query.all()
+    
+    nearest_driver_info = None
+    min_distance = float('inf')
+
+    if not available_drivers: 
+        message = f"No '{selected_vehicle_type if selected_vehicle_type else 'available'}' drivers found matching criteria."
+        if not selected_vehicle_type: message = "No drivers currently available or their nodes are not in routing graph."
+        return jsonify({'message': message, 'success': True, 'nearest_driver': None})
+
     for driver in available_drivers:
+        # driver.node is already confirmed to be in graph by the query filter
         distance = dijkstra(graph, user_closest_node, driver.node)
-        if distance < min_distance:
+        print(f"Dijkstra: UserNode '{user_closest_node}' to DriverNode '{driver.node}' (Driver: {driver.name}, Vehicle: {driver.vehicle}): dist {distance}")
+
+        if distance < min_distance: # Check if distance is not infinity
             min_distance = distance
             path = shortest_path(graph, user_closest_node, driver.node)
-            if path: nearest_driver_info = {'email': driver.email, 'name': driver.name, 'vehicle': driver.vehicle, 
-                                          'node': driver.node, 'graph_distance': round(min_distance,2) if min_distance != float('inf') else "Unreachable", 
-                                          'path_nodes': path}
-            else: min_distance = float('inf') 
-    if nearest_driver_info: return jsonify({'success': True, 'nearest_driver': nearest_driver_info})
-    return jsonify({'message': 'No reachable drivers found via Dijkstra network path.', 'success': True, 'nearest_driver': None})
+            if path: # A path was found
+                nearest_driver_info = {
+                    'email': driver.email, 
+                    'name': driver.name, 
+                    'vehicle': driver.vehicle, 
+                    'node': driver.node, 
+                    'graph_distance': round(min_distance, 2) if min_distance != float('inf') else "Unreachable", 
+                    'path_nodes': path 
+                }
+            else: # Should not happen if distance is not inf, but a safeguard
+                 # If dijkstra returned a finite distance but shortest_path is empty, it indicates an issue
+                 # in how shortest_path reconstructs or if the graph has inconsistencies.
+                 # For now, if no path array, consider it not the best option.
+                if min_distance != float('inf'): # Only print warning if distance was finite
+                    print(f"Warning: Dijkstra found distance {min_distance} but shortest_path returned no path for {user_closest_node} to {driver.node}")
+                min_distance = float('inf') # Effectively disqualifies this driver if path not found
+                
+    if nearest_driver_info: 
+        return jsonify({'success': True, 'nearest_driver': nearest_driver_info})
+    
+    message = f"No reachable '{selected_vehicle_type if selected_vehicle_type else 'drivers'}' found via network path."
+    if not selected_vehicle_type and not available_drivers: message = "No drivers found on the network."
+
+    return jsonify({'message': message, 'success': True, 'nearest_driver': None})
 
 @app.route('/request-ride', methods=['POST'])
 @login_required_user
@@ -253,37 +414,85 @@ def dashboard():
 @login_required_user
 def user_dashboard():
     user = User.query.get(session['user'])
-    drivers_js = [{'email':d.email, 'name':d.name, 'vehicle':d.vehicle, 'node':d.node} 
-                  for d in Driver.query.filter(Driver.node.isnot(None)).all() if d.node in coordinates]
-    status_info = None
-    accepted_ride = RideRequest.query.filter_by(user_email=user.email, status='accepted').order_by(RideRequest.timestamp.desc()).first()
-    if accepted_ride:
-        driver = Driver.query.get(accepted_ride.driver_email)
-        if driver and driver.node and driver.node in coordinates and \
-           accepted_ride.user_latitude_at_request is not None and accepted_ride.user_longitude_at_request is not None:
-            status_info = {'type':'accepted', 'driver_name':driver.name, 'driver_node':driver.node, 
-                           'user_latitude_for_route':accepted_ride.user_latitude_at_request, 
-                           'user_longitude_for_route':accepted_ride.user_longitude_at_request,
-                           'timestamp':format_datetime_npt(accepted_ride.timestamp), 
-                           'message':f"Ride with {driver.name} confirmed! En route."}
-        else: status_info = {'type':'error', 'message':'Accepted ride location data error.', 'timestamp':format_datetime_npt(datetime.now(timezone.utc))}
-    else:
-        pending = RideRequest.query.filter_by(user_email=user.email, status='Pending').order_by(RideRequest.timestamp.desc()).first()
-        if pending:
-            driver = Driver.query.get(pending.driver_email)
-            status_info = {'type': 'pending', 'driver_name': (driver.name if driver else pending.driver_email),
-                           'timestamp': format_datetime_npt(pending.timestamp),
-                           'message': f"Request to {driver.name if driver else pending.driver_email} is pending..."}
+    if not user: # Should be caught by decorator, but good for direct calls
+        session.pop('user', None)
+        flash('User session not found, please log in again.', 'error')
+        return redirect(url_for('login'))
+
+    # Get list of drivers with valid nodes for "Find Nearest" functionality
+    drivers_with_nodes = Driver.query.filter(Driver.node.isnot(None)).all()
+    driver_list_for_js = [
+        {'email': d.email, 'name': d.name, 'vehicle': d.vehicle, 'node': d.node}
+        for d in drivers_with_nodes if d.node in coordinates # Ensure node is in your defined coordinates
+    ]
+    
+    current_ride_status_info = None
+    # --- Logic to determine current_ride_status_info ---
+    accepted_ride_db = RideRequest.query.filter_by(user_email=user.email, status='accepted').order_by(RideRequest.timestamp.desc()).first()
+
+    if accepted_ride_db:
+        driver_obj = Driver.query.get(accepted_ride_db.driver_email)
+        # Ensure all necessary location data is present for an accepted ride
+        if driver_obj and driver_obj.node and driver_obj.node in coordinates and \
+           accepted_ride_db.user_latitude_at_request is not None and \
+           accepted_ride_db.user_longitude_at_request is not None:
+            current_ride_status_info = {
+                'type': 'accepted', 
+                'driver_name': driver_obj.name,
+                'driver_node': driver_obj.node, 
+                'user_latitude_for_route': accepted_ride_db.user_latitude_at_request,
+                'user_longitude_for_route': accepted_ride_db.user_longitude_at_request,
+                'timestamp': format_datetime_npt(accepted_ride_db.timestamp),
+                'message': f"Your ride with {driver_obj.name} is confirmed! Driver is en route."
+            }
         else:
-            last_inactive = RideRequest.query.filter(RideRequest.user_email==user.email, RideRequest.status.in_(['rejected','superseded'])).order_by(RideRequest.timestamp.desc()).first()
-            if last_inactive:
-                driver = Driver.query.get(last_inactive.driver_email)
-                msg = f"Previous request to {driver.name if driver else last_inactive.driver_email} was {last_inactive.status}."
-                if last_inactive.status == 'superseded': msg = "Previous active request was superseded."
-                status_info = {'type':last_inactive.status, 'driver_name':(driver.name if driver else last_inactive.driver_email),
-                               'timestamp':format_datetime_npt(last_inactive.timestamp), 'message':msg}
-    response = make_response(render_template('user_dashboard.html', user=user, drivers_for_js=drivers_js, 
-                           coords=coordinates, current_ride_status=status_info, graph_for_js=graph))
+            print(f"Warning (User Dashboard): Accepted ride ID {accepted_ride_db.id} has invalid location data. Driver Node: {driver_obj.node if driver_obj else 'N/A'}, User Lat: {accepted_ride_db.user_latitude_at_request}, User Lng: {accepted_ride_db.user_longitude_at_request}")
+            current_ride_status_info = {'type': 'error', 'message': 'Error displaying accepted ride details (location data issue).', 'timestamp': format_datetime_npt(datetime.now(timezone.utc))}
+    else:
+        pending_ride_db = RideRequest.query.filter_by(user_email=user.email, status='Pending').order_by(RideRequest.timestamp.desc()).first()
+        if pending_ride_db:
+            driver_obj = Driver.query.get(pending_ride_db.driver_email)
+            driver_name_pending = driver_obj.name if driver_obj else pending_ride_db.driver_email
+            current_ride_status_info = {
+                'type': 'pending', 
+                'driver_name': driver_name_pending,
+                'timestamp': format_datetime_npt(pending_ride_db.timestamp),
+                'message': f"Your request to {driver_name_pending} is pending..."
+            }
+        else:
+            last_inactive_ride_db = RideRequest.query.filter(
+                RideRequest.user_email == user.email, 
+                RideRequest.status.in_(['rejected','superseded'])
+            ).order_by(RideRequest.timestamp.desc()).first()
+            if last_inactive_ride_db:
+                driver_obj = Driver.query.get(last_inactive_ride_db.driver_email)
+                driver_name_inactive = driver_obj.name if driver_obj else last_inactive_ride_db.driver_email
+                msg = f"Previous request to {driver_name_inactive} was {last_inactive_ride_db.status}."
+                if last_inactive_ride_db.status == 'superseded': 
+                    msg = "Your previous active request was superseded by a new one."
+                current_ride_status_info = {
+                    'type': last_inactive_ride_db.status, 
+                    'driver_name': driver_name_inactive,
+                    'timestamp': format_datetime_npt(last_inactive_ride_db.timestamp), 
+                    'message': msg
+                }
+    # --- END Logic to determine current_ride_status_info ---
+
+    # --- Get unique vehicle types from Driver table for the dropdown ---
+    vehicle_types_query = db.session.query(Driver.vehicle).filter(Driver.vehicle.isnot(None), Driver.vehicle != '').distinct().all()
+    # vehicle_types_query will be a list of tuples, e.g., [('Ambulance',), ('Fire Truck',)]
+    # Flatten it to a simple list of strings, handling None values or empty strings
+    vehicle_types = sorted([vt[0] for vt in vehicle_types_query if vt[0]]) 
+    print(f"[User Dashboard] Unique Vehicle Types Found: {vehicle_types}")
+    # --- END Get unique vehicle types ---
+
+    response = make_response(render_template('user_dashboard.html', 
+                                                user=user, 
+                                                drivers_for_js=driver_list_for_js, 
+                                                coords=coordinates, # For driver node locations
+                                                current_ride_status=current_ride_status_info, 
+                                                graph_for_js=graph, # For Dijkstra path visualization
+                                                vehicle_types=vehicle_types)) # Pass to template
     return add_no_cache_to_response(response)
 
 @app.route('/user-home')
@@ -451,7 +660,6 @@ def edit_driver_profile():
 
     response = make_response(render_template('edit_driver_profile.html', driver=driver, nodes=coordinates.keys(), title="Edit Driver Profile"))
     return add_no_cache_to_response(response)
-
 
 if __name__ == '__main__':
     with app.app_context():

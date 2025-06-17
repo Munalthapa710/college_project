@@ -1,12 +1,10 @@
-
-# Predefined nodes for drivers and for user's "closest node" determination
 coordinates = {
-    'A': (27.7172, 85.3240),  # Example: Thamel, Kathmandu
-    'B': (27.7007, 85.3001),  # Example: Kathmandu Durbar Square
-    'C': (27.6730, 85.3134),  # Example: Patan Durbar Square
-    'D': (27.7148, 85.3442),  # Example: Pashupatinath Temple
-    'E': (27.6869, 85.3134),  # Example: Another point in Patan
-    'F': (27.7250, 85.3150)   # Example: Near Lainchaur
+    'A': (27.7172, 85.3240),  
+    'B': (27.7007, 85.3001),  
+    'C': (27.6730, 85.3134),  
+    'D': (27.7148, 85.3442),  
+    'E': (27.6869, 85.3134),  
+    'F': (27.7250, 85.3150)   
 }
 
 # Graph representing network connectivity and "distance" or "cost" between nodes

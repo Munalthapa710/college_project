@@ -1,5 +1,4 @@
 {% extends 'user_base.html' %}
-
 {% block head_extra %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
@@ -16,13 +15,29 @@
         Please click map to set
     {% endif %}
 </span></strong>
-   <small id="userClosestNodeSubDisplay" style="display:block; color:#555; min-height: 1em;"></small> 
+   <small id="userClosestNodeSubDisplay" style="display:none; color:#555; min-height: 1em;"></small> {# Hidden by default #}
    <span id="locationSetMessage" style="color: green; margin-left: 10px; font-weight: bold;"></span></p>
 
 <div class="map-wrapper-fullwidth">
     <div class="map-container-inner"> 
         <div id="map"><p style="text-align:center; padding-top: 50px; color: #555;" id="mapLoadingText">Loading map...</p></div>
     </div>
+</div>
+
+<div style="text-align: center; margin-bottom: 15px; margin-top: 20px;">
+    <label for="vehicleTypeSelect" style="margin-right: 10px; font-weight: 500;">Select Vehicle Type:</label>
+    <select id="vehicleTypeSelect" class="role-select" style="padding: 8px 12px; border-radius: 5px; min-width: 200px; border: 1px solid #ced4da;">
+        <option value="">Any Available Vehicle</option>
+        {% if vehicle_types %}
+            {% for v_type in vehicle_types %}
+                <option value="{{ v_type }}">{{ v_type }}</option>
+            {% endfor %}
+        {% else %}
+             <option value="Ambulance">Ambulance (Default)</option>
+             <option value="Fire Truck">Fire Truck (Default)</option>
+             <option value="Police Car">Police Car (Default)</option>
+        {% endif %}
+    </select>
 </div>
 
 <div style="text-align: center; margin-bottom: 20px;">
@@ -32,7 +47,9 @@
           {% endif %}>
     Find Nearest Driver (Network Path)
   </button>
-  <div id="nearestDriverInfo" class="info-box" style="display:none; max-width: 500px; margin-left: auto; margin-right: auto;"></div>
+  <div id="nearestDriverInfo" class="info-box" style="display:none; max-width: 500px; margin-left: auto; margin-right: auto;">
+      {# Spinner or driver info will be injected here by JS #}
+  </div>
 </div>
 
 <div id="notifications" class="status-notifications">
@@ -58,7 +75,7 @@
   let userLiveMarker = null; 
   let allDriverMapMarkers = {}; 
   let mainAcceptedRouteControl = null; 
-  let previewDijkstraPathLayer = null; 
+  let previewDijkstraPathLayer = null; // Still declared for clearing logic, though not drawn
   let currentNearestDriverForConfirmation = null; 
   
   let currentUserLatitude = {{ user.latitude|tojson if user.latitude is not none else 'null' }};
@@ -68,13 +85,10 @@
   console.log("[USER DASH] Initial Data from Flask:");
   const coordsDataForDrivers = {{ coords | tojson | safe }}; 
   console.log("coordsDataForDrivers:", JSON.parse(JSON.stringify(coordsDataForDrivers || {})));
-  
   const graphDataForDijkstra = {{ graph_for_js | tojson | safe }};
   console.log("graphDataForDijkstra:", JSON.parse(JSON.stringify(graphDataForDijkstra || {})));
-  
   const allDriversDataForFinding = {{ drivers_for_js | tojson | safe }}; 
   console.log("allDriversDataForFinding:", JSON.parse(JSON.stringify(allDriversDataForFinding || [])));
-  
   const currentRideStatusFromServer = {{ current_ride_status | tojson | safe }}; 
   console.log("currentRideStatusFromServer:", JSON.parse(JSON.stringify(currentRideStatusFromServer || {})));
 
@@ -85,113 +99,16 @@
   const enRouteDriverIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
   const previewDriverIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
 
-  function displayErrorOnMapContainer(message, errorObj) {
-      const mapLoadingText = document.getElementById('mapLoadingText');
-      const mapDiv = document.getElementById('map');
-      if (mapLoadingText) mapLoadingText.style.display = 'none'; 
-      let detailedError = message;
-      if (errorObj && errorObj.stack) {
-          detailedError += "<br><pre style='font-size:0.8em; text-align:left; white-space:pre-wrap;word-break:break-all;'>" + errorObj.stack.substring(0,500) + "...</pre>";
-      } else if (errorObj) {
-          detailedError += "<br><pre style='font-size:0.8em; text-align:left; white-space:pre-wrap;word-break:break-all;'>" + JSON.stringify(errorObj, null, 2) + "</pre>";
-      }
-      if (mapDiv) {
-          mapDiv.innerHTML = `<p style="padding:20px; text-align:center; color:red; font-weight:bold; font-size:1.1em; background-color: #ffe0e0; border: 1px solid red;">MAP INITIALIZATION ERROR:<br>${detailedError}</p>`;
-      }
-      console.error("MAP ERROR:", message, errorObj);
-  }
-
-  function findClosestNodeKeyToLatLng(latlng, availableNodeCoords, routableGraph) {
-    let closestKey = null; let minDist = Infinity;
-    // console.log("[findClosestNodeKeyToLatLng] Called with latlng:", latlng.toString());
-    if (!availableNodeCoords || typeof availableNodeCoords !== 'object' || Object.keys(availableNodeCoords).length === 0) {
-        console.warn("[findClosestNodeKeyToLatLng] availableNodeCoords data is missing or empty. Cannot find closest node.");
-        return null;
-    }
-    if (!routableGraph || typeof routableGraph !== 'object' || Object.keys(routableGraph).length === 0) {
-        console.warn("[findClosestNodeKeyToLatLng] routableGraph data is missing or empty.");
-    }
-    for (const nodeKey in availableNodeCoords) {
-      if (availableNodeCoords.hasOwnProperty(nodeKey)) {
-          if (routableGraph && !routableGraph.hasOwnProperty(nodeKey)) {
-              continue; 
-          }
-          const nodeCoordArray = availableNodeCoords[nodeKey];
-          if(Array.isArray(nodeCoordArray) && nodeCoordArray.length === 2 && typeof nodeCoordArray[0] === 'number' && typeof nodeCoordArray[1] === 'number') {
-            const nodeLatLng = L.latLng(nodeCoordArray[0], nodeCoordArray[1]);
-            const dist = latlng.distanceTo(nodeLatLng);
-            if (dist < minDist) { minDist = dist; closestKey = nodeKey; }
-          }
-      }
-    }
-    console.log("[findClosestNodeKeyToLatLng] Determined closest routable node:", closestKey);
-    return closestKey;
-  }
-
-  function updateUserPreciseLocationAndSave(latlng) {
-    const locationSetMsgEl = document.getElementById('locationSetMessage');
-    const preciseLocDisplayEl = document.getElementById('currentUserPreciseLocation');
-    const subDisplayEl = document.getElementById('userClosestNodeSubDisplay');
-    const findBtn = document.getElementById('findNearestBtn');
-
-    locationSetMsgEl.textContent = ""; 
-    if(preciseLocDisplayEl) preciseLocDisplayEl.textContent = `(${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)})`;
-    userLiveMarker.setLatLng(latlng).bindPopup(`Your Location: (${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)})`).openPopup();
-    
-    userClosestNodeKeyForDijkstra = findClosestNodeKeyToLatLng(latlng, coordsDataForDrivers, graphDataForDijkstra);
-    
-    if (userClosestNodeKeyForDijkstra) {
-        if(subDisplayEl) subDisplayEl.textContent = `(Nearest Service Point for Network Route: ${userClosestNodeKeyForDijkstra})`;
-        if(findBtn) { findBtn.disabled = false; findBtn.title = "Find Nearest Driver (Network Path)"; }
-    } else {
-        if(subDisplayEl) subDisplayEl.textContent = "(Cannot determine nearest service point for network routing. Click map to refine.)";
-        if(findBtn) { findBtn.disabled = true; findBtn.title = "Set location closer to a routable service point.";}
-    }
-
-    const latChanged = currentUserLatitude === null || Math.abs(currentUserLatitude - latlng.lat) > 1e-7;
-    const lngChanged = currentUserLongitude === null || Math.abs(currentUserLongitude - latlng.lng) > 1e-7;
-
-    if (latChanged || lngChanged) {
-        fetch('/set-user-current-location', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({latitude: latlng.lat, longitude: latlng.lng}) })
-        .then(res => { if(!res.ok) return res.text().then(text => {throw new Error(`Server error ${res.status}: ${text.substring(0,100)}` )}); return res.json(); })
-        .then(data => {
-            if (data.success) { currentUserLatitude = data.latitude; currentUserLongitude = data.longitude; locationSetMsgEl.textContent = "Location Set & Saved!";
-            } else { locationSetMsgEl.textContent = "Could not save: " + (data.error || ""); }
-            setTimeout(() => locationSetMsgEl.textContent = "", 3000);
-        }).catch(err => { console.error("Save location fetch error:", err); locationSetMsgEl.textContent = "Network error saving location."; setTimeout(() => locationSetMsgEl.textContent = "", 3000);});
-    } else { locationSetMsgEl.textContent = "Location Confirmed."; setTimeout(() => { locationSetMsgEl.textContent = ""; }, 3000); }
-  }
+  function displayErrorOnMapContainer(message, errorObj) { const mapLoadingText = document.getElementById('mapLoadingText'); const mapDiv = document.getElementById('map'); if (mapLoadingText) mapLoadingText.style.display = 'none'; let detailedError = message; if (errorObj && errorObj.stack) { detailedError += "<br><pre style='font-size:0.8em; text-align:left; white-space:pre-wrap;word-break:break-all;'>" + errorObj.stack.substring(0,500) + "...</pre>"; } else if (errorObj) { detailedError += "<br><pre style='font-size:0.8em; text-align:left; white-space:pre-wrap;word-break:break-all;'>" + JSON.stringify(errorObj, null, 2) + "</pre>"; } if (mapDiv) { mapDiv.innerHTML = `<p style="padding:20px; text-align:center; color:red; font-weight:bold; font-size:1.1em; background-color: #ffe0e0; border: 1px solid red;">MAP INIT ERROR:<br>${detailedError}</p>`;} console.error("MAP ERROR:", message, errorObj); }
+  function findClosestNodeKeyToLatLng(latlng, availableNodeCoords, routableGraph) { let closestKey = null; let minDist = Infinity; if (!availableNodeCoords || typeof availableNodeCoords !== 'object' || Object.keys(availableNodeCoords).length === 0) { console.warn("findClosest: nodeCoords invalid."); return null;} for (const nodeKey in availableNodeCoords) { if (availableNodeCoords.hasOwnProperty(nodeKey)) { if (routableGraph && !routableGraph.hasOwnProperty(nodeKey)) continue; const nodeCoordArray = availableNodeCoords[nodeKey]; if(Array.isArray(nodeCoordArray) && nodeCoordArray.length === 2 && typeof nodeCoordArray[0] === 'number' && typeof nodeCoordArray[1] === 'number') { const nodeLatLng = L.latLng(nodeCoordArray[0], nodeCoordArray[1]); const dist = latlng.distanceTo(nodeLatLng); if (dist < minDist) { minDist = dist; closestKey = nodeKey; }} else { /* console.warn("Invalid coord for node", nodeKey) */ }}} console.log("[findClosestNodeKeyToLatLng] Determined closest routable node:", closestKey); return closestKey; }
+  function updateUserPreciseLocationAndSave(latlng) { const locMsgEl = document.getElementById('locationSetMessage'); const preciseLocDisplayEl = document.getElementById('currentUserPreciseLocation'); const subDisplayEl = document.getElementById('userClosestNodeSubDisplay'); const findBtn = document.getElementById('findNearestBtn'); locMsgEl.textContent = ""; if(preciseLocDisplayEl) preciseLocDisplayEl.textContent = `(${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)})`; if (userLiveMarker) { userLiveMarker.setLatLng(latlng).bindPopup(`Your Location: (${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)})`).openPopup(); } userClosestNodeKeyForDijkstra = findClosestNodeKeyToLatLng(latlng, coordsDataForDrivers, graphDataForDijkstra); if(subDisplayEl) subDisplayEl.style.display = 'none'; if (userClosestNodeKeyForDijkstra) { if(findBtn) { findBtn.disabled = false; findBtn.title = "Find Nearest Driver (Network Path)"; }} else { if(findBtn) { findBtn.disabled = true; findBtn.title = "Set location closer to a routable service point.";}} const latChanged = currentUserLatitude === null || Math.abs(currentUserLatitude - latlng.lat) > 1e-7; const lngChanged = currentUserLongitude === null || Math.abs(currentUserLongitude - latlng.lng) > 1e-7; if (latChanged || lngChanged) { fetch('/set-user-current-location', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({latitude:latlng.lat, longitude:latlng.lng})}).then(r=>r.json()).then(d=>{if(d.success){currentUserLatitude=d.latitude;currentUserLongitude=d.longitude;locMsgEl.textContent="Location Saved!";}else{locMsgEl.textContent="Could not save: "+(d.error||"");}setTimeout(()=>locMsgEl.textContent="",3000);}).catch(e=>{locMsgEl.textContent="Network Save Err.";setTimeout(()=>locMsgEl.textContent="",3000);});}else{locMsgEl.textContent="Location Confirmed.";setTimeout(()=>locMsgEl.textContent="",3000);} }
+  function drawOrUpdateAllDriverMarkers() { for(const e in allDriverMapMarkers){if(allDriverMapMarkers[e]&&map.hasLayer(allDriverMapMarkers[e]))map.removeLayer(allDriverMapMarkers[e]);} allDriverMapMarkers={}; if(!allDriversDataForFinding) {console.warn("No driver data to draw.");return;} if(!coordsDataForDrivers || Object.keys(coordsDataForDrivers).length === 0) {console.warn("No coords data for drivers.");return;} allDriversDataForFinding.forEach(d=>{if (d.node && coordsDataForDrivers.hasOwnProperty(d.node)) { const c=coordsDataForDrivers[d.node]; if(Array.isArray(c)&&c.length===2&&typeof c[0]==='number'&&typeof c[1]==='number'){ const l=L.latLng(c[0],c[1]);let i=genericDriverIcon,p=`Dr: ${d.name}<br>V: ${d.vehicle||'N/A'}`,z=0;if(currentRideStatusFromServer&¤tRideStatusFromServer.type==='accepted'&¤tRideStatusFromServer.driver_name===d.name){i=enRouteDriverIcon;p=`<b>Your Dr: ${d.name} (En Route)</b><br>V: ${d.vehicle||'N/A'}`;z=1000;}else if(currentNearestDriverForConfirmation&¤tNearestDriverForConfirmation.email===d.email){i=previewDriverIcon;p=`<b>Nearest: ${d.name}</b><br>V: ${d.vehicle||'N/A'}<br>(Preview)`;z=500;}allDriverMapMarkers[d.email]=L.marker(l,{icon:i,zIndexOffset:z}).addTo(map).bindPopup(p);}else{console.warn("UserDash: Invalid coords for driver node:",d.node,"Coords:",c);}}else{console.warn("UserDash: Driver",d.name,"node '",d.node,"' missing/invalid.");}}); }
   
-  function drawOrUpdateAllDriverMarkers() {
-    for(const email in allDriverMapMarkers){if(allDriverMapMarkers[email]&&map.hasLayer(allDriverMapMarkers[email]))map.removeLayer(allDriverMapMarkers[email]);}
-    allDriverMapMarkers={};
-    if(!allDriversDataForFinding || allDriversDataForFinding.length === 0) {console.warn("[UserDash] No driver data to draw.");return;}
-    if(!coordsDataForDrivers || Object.keys(coordsDataForDrivers).length === 0) {console.warn("[UserDash] No coords data for drivers.");return;}
-
-    allDriversDataForFinding.forEach(driver => {
-        if (driver.node && coordsDataForDrivers.hasOwnProperty(driver.node)) {
-            const driverCoordsArray = coordsDataForDrivers[driver.node];
-            if (Array.isArray(driverCoordsArray) && driverCoordsArray.length === 2 && typeof driverCoordsArray[0] === 'number' && typeof driverCoordsArray[1] === 'number') {
-                const driverLatLng = L.latLng(driverCoordsArray[0], driverCoordsArray[1]);
-                let iconToUse = genericDriverIcon; let popupText = `Driver: ${driver.name}<br>V: ${driver.vehicle||'N/A'}`; let zIndexOffset = 0; 
-                if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' && currentRideStatusFromServer.driver_name === driver.name) { 
-                    iconToUse = enRouteDriverIcon; popupText = `<b>Your Driver: ${driver.name} (En Route)</b><br>V: ${driver.vehicle||'N/A'}`; zIndexOffset = 1000; 
-                } else if (currentNearestDriverForConfirmation && currentNearestDriverForConfirmation.email === driver.email) { 
-                    iconToUse = previewDriverIcon; popupText = `<b>Nearest: ${driver.name}</b><br>V: ${driver.vehicle||'N/A'}<br>(Preview)`; zIndexOffset = 500;
-                }
-                allDriverMapMarkers[driver.email] = L.marker(driverLatLng, { icon: iconToUse, zIndexOffset: zIndexOffset }).addTo(map).bindPopup(popupText);
-            }
-        }
-    });
-  }
-
-  document.addEventListener("DOMContentLoaded", function () {
+  document.addEventListener("DOMContentLoaded", function () { 
     const mapLoadingTextEl = document.getElementById('mapLoadingText');
     try {
         console.log("[USER DASH] DOMContentLoaded.");
-        let mapInitialView = fallbackLatLng; 
-        let userMarkerInitialLatLng = fallbackLatLng;
-
+        let mapInitialView = fallbackLatLng; let userMarkerInitialLatLng = fallbackLatLng;
         if (typeof coordsDataForDrivers !== 'object' || coordsDataForDrivers === null) throw new Error("Driver coordinates data (coordsDataForDrivers) is invalid/not loaded.");
         if (typeof graphDataForDijkstra !== 'object' || graphDataForDijkstra === null) console.warn("[USER DASH] Dijkstra graph data (graphDataForDijkstra) is invalid/not loaded.");
 
@@ -199,8 +116,7 @@
             userMarkerInitialLatLng = L.latLng(currentUserLatitude, currentUserLongitude);
             mapInitialView = userMarkerInitialLatLng;
             userClosestNodeKeyForDijkstra = findClosestNodeKeyToLatLng(userMarkerInitialLatLng, coordsDataForDrivers, graphDataForDijkstra);
-        } else if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' && 
-                   currentRideStatusFromServer.user_latitude_for_route !== null && currentRideStatusFromServer.user_longitude_for_route !== null) {
+        } else if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' && currentRideStatusFromServer.user_latitude_for_route !== null && currentRideStatusFromServer.user_longitude_for_route !== null) {
             userMarkerInitialLatLng = L.latLng(currentRideStatusFromServer.user_latitude_for_route, currentRideStatusFromServer.user_longitude_for_route);
             mapInitialView = userMarkerInitialLatLng;
             const preciseLocDisp = document.getElementById('currentUserPreciseLocation');
@@ -210,13 +126,13 @@
         }
         
         const findBtn = document.getElementById('findNearestBtn');
-        const subDisplayEl = document.getElementById('userClosestNodeSubDisplay');
+        const subDisplayEl = document.getElementById('userClosestNodeSubDisplay'); 
+        if(subDisplayEl) subDisplayEl.style.display = 'none'; // Keep it hidden based on previous request
+
         if (userClosestNodeKeyForDijkstra) {
-            if(subDisplayEl) subDisplayEl.textContent = `(Nearest Service Point for Network Route: ${userClosestNodeKeyForDijkstra})`;
             if(findBtn && (currentUserLatitude !== null && currentUserLongitude !== null) ) { findBtn.disabled = false; findBtn.title = "Find Nearest Driver (Network Path)"; }
             else if(findBtn) { findBtn.disabled = true; findBtn.title = "Click map to set your location first.";}
         } else {
-            if(subDisplayEl) subDisplayEl.textContent = "(Cannot determine nearest service point for network routing. Click map to refine.)";
             if(findBtn) { findBtn.disabled = true; findBtn.title = "Set location closer to a routable service point for network routing.";}
         }
          if (currentUserLatitude === null || currentUserLongitude === null) {
@@ -224,37 +140,22 @@
         }
 
         if(mapLoadingTextEl) mapLoadingTextEl.remove();
-        if (!(mapInitialView instanceof L.LatLng) || isNaN(mapInitialView.lat) || isNaN(mapInitialView.lng) ) {
-            console.warn("[USER DASH] mapInitialView invalid, using fallback:", mapInitialView);
-            mapInitialView = fallbackLatLng; 
-        }
+        if (!(mapInitialView instanceof L.LatLng) || isNaN(mapInitialView.lat) || isNaN(mapInitialView.lng) ) { mapInitialView = fallbackLatLng; }
         
         map = L.map('map').setView(mapInitialView, 13); 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OSM' })
             .on('tileerror', function(e){ console.error("Tile error:", e); displayErrorOnMapContainer("Map tiles failed to load. Check internet or tile server status."); })
             .addTo(map);
         
-        userLiveMarker = L.marker(userMarkerInitialLatLng, { icon: userIcon, draggable: true })
-          .addTo(map).bindPopup(currentUserLatitude !== null ? `Your Location: (${currentUserLatitude.toFixed(6)}, ${currentUserLongitude.toFixed(6)})` : "Click map to set your location").openPopup();
+        userLiveMarker = L.marker(userMarkerInitialLatLng, { icon: userIcon, draggable: true }).addTo(map).bindPopup(currentUserLatitude !== null ? `Your Location: (${currentUserLatitude.toFixed(6)}, ${currentUserLongitude.toFixed(6)})` : "Click map to set your location").openPopup();
         userLiveMarker.on('dragend',function(e){ updateUserPreciseLocationAndSave(e.target.getLatLng()); });
         map.on("click", function (e) { updateUserPreciseLocationAndSave(e.latlng); });
         
         drawOrUpdateAllDriverMarkers(); 
 
-        if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' && 
-            currentRideStatusFromServer.driver_node && coordsDataForDrivers[currentRideStatusFromServer.driver_node] && 
-            currentRideStatusFromServer.user_latitude_for_route !== null && currentRideStatusFromServer.user_longitude_for_route !== null) {
-            const driverNodeCoords = coordsDataForDrivers[currentRideStatusFromServer.driver_node];
-            const driverLatLng = L.latLng(driverNodeCoords[0], driverNodeCoords[1]);
-            const userLatLngForRoute = L.latLng(currentRideStatusFromServer.user_latitude_for_route, currentRideStatusFromServer.user_longitude_for_route);
-            if (userLiveMarker) userLiveMarker.setLatLng(userLatLngForRoute); 
-            drawMainAcceptedRoute(userLatLngForRoute, driverLatLng);
-        }
+        if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' && currentRideStatusFromServer.driver_node && coordsDataForDrivers[currentRideStatusFromServer.driver_node] && currentRideStatusFromServer.user_latitude_for_route !== null && currentRideStatusFromServer.user_longitude_for_route !== null) { const drvNC = coordsDataForDrivers[currentRideStatusFromServer.driver_node]; const drvLL = L.latLng(drvNC[0], drvNC[1]); const usrLL = L.latLng(currentRideStatusFromServer.user_latitude_for_route, currentRideStatusFromServer.user_longitude_for_route); if (userLiveMarker) userLiveMarker.setLatLng(usrLL); drawMainAcceptedRoute(usrLL, drvLL); }
         setTimeout(() => { if(map) map.invalidateSize(true); }, 500);
-    } catch (error) {
-        console.error("CRITICAL ERROR during User Dashboard map initialization:", error);
-        displayErrorOnMapContainer(error.message, error);
-    }
+    } catch (error) { console.error("CRITICAL ERROR UserDash map init:", error); displayErrorOnMapContainer(error.message, error); }
   });
 
   function clearMainAcceptedRoute() { if (mainAcceptedRouteControl) { map.removeControl(mainAcceptedRouteControl); mainAcceptedRouteControl = null; }}
@@ -262,24 +163,53 @@
   function drawMainAcceptedRoute(usrLtLng, drvLtLng) { clearMainAcceptedRoute(); mainAcceptedRouteControl = L.Routing.control({ waypoints: [usrLtLng, drvLtLng], routeWhileDragging: false, show: false, addWaypoints: false, lineOptions: { styles: [{color: 'blue', opacity: 0.9, weight: 6}] }, createMarker: ()=>null }).addTo(map); map.fitBounds(L.latLngBounds([usrLtLng, drvLtLng]), {padding: [50,50]}); }
   
   window.findNearestAndShowPreview = function () { 
-    if(currentUserLatitude===null||currentUserLongitude===null||!userClosestNodeKeyForDijkstra){
-        alert("Set your location on map and ensure a nearby service point is found for network routing.");
+    if(currentUserLatitude===null||currentUserLongitude===null){alert("Please set your location on the map first.");return;}
+    if(graphDataForDijkstra && Object.keys(graphDataForDijkstra).length > 0 && !userClosestNodeKeyForDijkstra){ 
+        alert("Cannot determine nearest service point for network routing. Try clicking the map again."); 
         const findBtnEarly = document.getElementById('findNearestBtn');
-        if (findBtnEarly) findBtnEarly.disabled = !(currentUserLatitude!==null && currentUserLongitude!==null && userClosestNodeKeyForDijkstra);
-        return;
+        if (findBtnEarly) findBtnEarly.disabled = false; // Re-enable if check fails here
+        return; 
     }
-    const findBtn=document.getElementById('findNearestBtn'); findBtn.disabled=true;clearPreviewDijkstraPath();
-    const infoDiv=document.getElementById("nearestDriverInfo");infoDiv.innerHTML="<p>Finding driver (network)...</p>";infoDiv.style.display='block';currentNearestDriverForConfirmation=null;
-    fetch('/find-nearest-driver-dijkstra',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_closest_node:userClosestNodeKeyForDijkstra})})
+    
+    const findBtn=document.getElementById('findNearestBtn'); findBtn.disabled=true;
+    clearPreviewDijkstraPath();
+    const infoDiv=document.getElementById("nearestDriverInfo");
+    infoDiv.innerHTML=`<div class="spinner-loader" style="display: block; margin-bottom: 5px;"></div><p>Finding nearest driver...</p>`;
+    infoDiv.style.display='block';
+    currentNearestDriverForConfirmation=null; 
+
+    const selectedVehicleType = document.getElementById('vehicleTypeSelect').value;
+    console.log("[USER DASH] Searching with Vehicle Type:", selectedVehicleType, "User Closest Node:", userClosestNodeKeyForDijkstra);
+
+    fetch('/find-nearest-driver-dijkstra',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+            user_closest_node: userClosestNodeKeyForDijkstra, // Can be null if graphData is not used/available
+            vehicle_type: selectedVehicleType 
+        })
+    })
     .then(r=>{ if(!r.ok) return r.text().then(text => {throw new Error("Server error: "+r.status + " "+ text.substring(0,100))}); return r.json();})
     .then(d=>{
         if(d.success&&d.nearest_driver){
-            currentNearestDriverForConfirmation=d.nearest_driver;drawOrUpdateAllDriverMarkers();
-            infoDiv.innerHTML=`<p><strong>Nearest (Network):</strong> ${d.nearest_driver.name} (Node ${d.nearest_driver.node})<br>Vehicle: ${d.nearest_driver.vehicle||'N/A'}<br>Path Dist: ${d.nearest_driver.graph_distance} units</p><button class="btn-confirm" onclick="confirmRequestAndClearPreview()">Confirm</button> <button class="btn-cancel" onclick="cancelDriverSelectionAndClearPreview()">Cancel</button>`;
-            // NO PURPLE LINE DRAWING
-        }else{infoDiv.innerHTML=`<p>${d.message||"No reachable drivers."}</p>`;drawOrUpdateAllDriverMarkers();} 
-        findBtn.disabled=false;
-    }).catch(e=>{console.error("Dijkstra fetch err:",e);infoDiv.innerHTML=`<p style="color:red;">Error finding driver: ${e.message}</p>`;findBtn.disabled=false;drawOrUpdateAllDriverMarkers();});
+            currentNearestDriverForConfirmation=d.nearest_driver;
+            drawOrUpdateAllDriverMarkers(); 
+            let vehicleLabel = selectedVehicleType ? selectedVehicleType : 'Vehicle';
+            if (selectedVehicleType && d.nearest_driver.vehicle && !d.nearest_driver.vehicle.toLowerCase().includes(selectedVehicleType.toLowerCase())) {
+                vehicleLabel = d.nearest_driver.vehicle || 'Vehicle'; 
+            }
+            infoDiv.innerHTML=`<p><strong>Nearest ${vehicleLabel}:</strong> ${d.nearest_driver.name} (Node ${d.nearest_driver.node})<br>Vehicle: ${d.nearest_driver.vehicle||'N/A'}<br>Path Dist: ${d.nearest_driver.graph_distance} units</p><button class="btn-confirm" onclick="confirmRequestAndClearPreview()">Confirm Request</button> <button class="btn-cancel" onclick="cancelDriverSelectionAndClearPreview()">Cancel</button>`;
+        }else{
+            infoDiv.innerHTML=`<p>${d.message||`No reachable ${selectedVehicleType || 'drivers'} found.`}</p>`;
+            drawOrUpdateAllDriverMarkers(); 
+        } 
+    }).catch(e=>{
+        console.error("Dijkstra fetch err:",e);
+        infoDiv.innerHTML=`<p style="color:red;">Error finding driver: ${e.message}</p>`;
+        drawOrUpdateAllDriverMarkers();
+    }).finally(() => {
+        if(findBtn) findBtn.disabled = false;
+    });
   };
 
   window.confirmRequestAndClearPreview = function() { 
@@ -297,7 +227,7 @@
     clearPreviewDijkstraPath();currentNearestDriverForConfirmation=null;drawOrUpdateAllDriverMarkers();
     document.getElementById("nearestDriverInfo").style.display='none';
     const findBtn = document.getElementById('findNearestBtn');
-    if(findBtn) findBtn.disabled = !(currentUserLatitude!==null && currentUserLongitude!==null && userClosestNodeKeyForDijkstra);
+    if(findBtn) findBtn.disabled = !(currentUserLatitude!==null && currentUserLongitude!==null && (userClosestNodeKeyForDijkstra || !graphDataForDijkstra || Object.keys(graphDataForDijkstra).length === 0) );
   };
 </script>
 {% endblock %}
