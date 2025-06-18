@@ -48,12 +48,12 @@
     </div>
 
     <script type="text/javascript">
-        // ... (JavaScript for bfcache and dropdown toggle - same as previous) ...
         window.addEventListener('pageshow', function(event) { if (event.persisted) { window.location.reload(); } });
         window.addEventListener('unload', function() {});
         function toggleProfileDropdown(dropdownId) { var d=document.getElementById(dropdownId); if(d){var all=document.getElementsByClassName("profile-dropdown");for(var i=0;i<all.length;i++){if(all[i].id!==dropdownId&&all[i].classList.contains('show'))all[i].classList.remove('show');}d.classList.toggle("show");}}
         window.onclick = function(event) { if (!event.target.closest('.profile-image-clickable') && !event.target.closest('.profile-dropdown')) { var ds=document.getElementsByClassName("profile-dropdown"); for(var i=0;i<ds.length;i++){if(ds[i].classList.contains('show'))ds[i].classList.remove('show');}}}
     </script>
-    {% block scripts_extra %}{% endblock %}
+    {% block scripts_extra %}
+    {% endblock %}
 </body>
 </html>
