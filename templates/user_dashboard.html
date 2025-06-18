@@ -68,6 +68,7 @@
     let mainAcceptedRouteControl = null;
     let previewDijkstraPathLayer = null;
     let currentNearestDriverForConfirmation = null;
+    let socket;
 
     let currentUserLatitude = {{ user.latitude|tojson if user.latitude is not none else 'null' }};
     let currentUserLongitude = {{ user.longitude|tojson if user.longitude is not none else 'null' }};
@@ -151,7 +152,9 @@
     console.log("[USER DASH] Finished drawing/updating driver markers."); // Add log
 }
 
-    document.addEventListener("DOMContentLoaded", function () {
+    document.addEventListener("DOMContentLoaded", function () 
+    {
+
       const mapLoadingTextEl = document.getElementById('mapLoadingText');
       try {
           console.log("[USER DASH] DOMContentLoaded - BEGIN Map Initialization.");
@@ -271,6 +274,59 @@
           console.error("CRITICAL ERROR during User Dashboard map initialization process:", error);
           displayErrorOnMapContainer(error.message, error); // Pass the error object for stack trace
       }
+      try {
+            console.log("[USER DASH] Attempting Socket.IO connection...");
+            socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
+
+            socket.on('connect', function() {
+                console.log('[USER DASH] Socket.IO Connected! SID:', socket.id);
+                const userEmail = "{{ user.email if user and user.email else '' }}"; // Get email from Flask context
+                if (userEmail) {
+                    console.log("[USER DASH] Emitting 'join' event for email:", userEmail);
+                    socket.emit('join', {email: userEmail});
+                } else {
+                    console.warn("[USER DASH] User email not available in template for joining room.");
+                }
+            });
+
+            socket.on('connect_error', (error) => {
+                console.error('[USER DASH] Socket.IO Connection Error:', error);
+                // Optionally display a user-friendly message on the page
+            });
+            socket.on('disconnect', (reason) => {
+               console.log('[USER DASH] Socket.IO Disconnected:', reason);
+            });
+
+            // Listen for ride status updates from the server
+            socket.on('ride_accepted', function(data) {
+                console.log('[USER DASH] Received ride_accepted:', data);
+                alert(data.message || `Ride with ${data.driver_name} accepted!`); 
+                // For a better UX, update the DOM directly instead of reloading.
+                // For now, reload to refresh the current_ride_status display.
+                location.reload(); 
+            });
+
+            socket.on('ride_rejected', function(data) {
+                console.log('[USER DASH] Received ride_rejected:', data);
+                alert(data.message || `Ride rejected by ${data.driver_name}.`);
+                location.reload(); 
+            });
+
+            socket.on('ride_completed', function(data) {
+                console.log('[USER DASH] Received ride_completed:', data);
+                alert(data.message || `Ride with ${data.driver_name} completed.`);
+                location.reload(); 
+            });
+
+            socket.on('status_update', function(data) { // For join confirmation
+                 console.log('[USER DASH] Received status_update:', data.msg);
+            });
+
+        } catch (e) {
+            console.error("[USER DASH] Error initializing Socket.IO:", e);
+            // Optionally display an error message on the page
+        }
+        // --- END SOCKET.IO Connection ---
     });
 
 

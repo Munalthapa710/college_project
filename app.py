@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, session, jsonify, make_response, url_for, flash 
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timezone
+from flask_socketio import SocketIO, emit, join_room, leave_room
 import pytz
 import re
 from functools import wraps 
@@ -13,6 +14,10 @@ app.secret_key = os.urandom(24).hex()
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Initialize SocketIO AFTER app configuration
+# Using eventlet for asynchronous operations. cors_allowed_origins="*" is for development convenience.
+socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 db = SQLAlchemy(app)
 
 NPT = pytz.timezone('Asia/Kathmandu')
@@ -321,68 +326,187 @@ def find_nearest_driver_dijkstra():
 @app.route('/request-ride', methods=['POST'])
 @login_required_user
 def request_ride():
-    data=request.get_json();
-    if not data: return jsonify({'message': 'No JSON', 'success': False}), 400
+    if 'user' not in session: # Redundant due to decorator, but safe
+        return jsonify({'message': 'Not logged in', 'success': False}), 403
+    
+    data = request.get_json()
+    if not data:
+         return jsonify({'message': 'Invalid request: No JSON data received', 'success': False}), 400
+    
     driver_email = data.get('driver_email')
-    if not driver_email: return jsonify({'message': 'Driver email missing', 'success': False}), 400
+    if not driver_email:
+        return jsonify({'message': 'Driver email missing from request', 'success': False}), 400
+        
     user_email = session['user']
-    RideRequest.query.filter(RideRequest.user_email == user_email, RideRequest.status.in_(['Pending', 'accepted'])).update({'status': 'superseded'}, synchronize_session='fetch')
-    user = User.query.get(user_email)
-    if not user: return jsonify({'message': 'User not found', 'success': False}), 404
-    if user.latitude is None or user.longitude is None: return jsonify({'message': 'Your precise location is not set.', 'success': False}), 400
-    new_ride = RideRequest(user_email=user_email, driver_email=driver_email, user_latitude_at_request=user.latitude, user_longitude_at_request=user.longitude, status='Pending')
-    db.session.add(new_ride); 
-    try: db.session.commit(); return jsonify({'message': f'Ride requested successfully from {driver_email}!', 'success': True})
-    except Exception as e: db.session.rollback();print(f"RideReqErr:{e}"); return jsonify({'message': 'Error requesting ride.', 'success': False}), 500
+
+    # Supersede previous active requests by this user
+    RideRequest.query.filter(
+        RideRequest.user_email == user_email, 
+        RideRequest.status.in_(['Pending', 'accepted'])
+    ).update({'status': 'superseded'}, synchronize_session='fetch')
+    # db.session.commit() # Commit this update along with the new ride insertion
+
+    requesting_user = User.query.get(user_email)
+    if not requesting_user: # Should be caught by login_required_user if session is valid
+        return jsonify({'message': 'Requesting user not found in database.', 'success': False}), 404
+    
+    if requesting_user.latitude is None or requesting_user.longitude is None:
+        return jsonify({'message': 'Your precise location is not set. Please click the map to set your location before requesting a ride.', 'success': False}), 400
+
+    new_ride = RideRequest(
+        user_email=user_email,
+        driver_email=driver_email,
+        user_latitude_at_request=requesting_user.latitude,
+        user_longitude_at_request=requesting_user.longitude,
+        # timestamp defaults to datetime.now(timezone.utc)
+        status='Pending'
+    )
+    db.session.add(new_ride)
+    
+    try:
+        db.session.commit() # Commits both supersede and new ride
+        
+        # --- SOCKET.IO EMIT for new ride request ---
+        driver_target_email_for_room = new_ride.driver_email # The driver's email is the room name
+        
+        ride_data_for_driver_socket = {
+            'id': new_ride.id,
+            'user_email': new_ride.user_email,
+            'user_name': requesting_user.name or "A User",
+            'user_latitude': new_ride.user_latitude_at_request,
+            'user_longitude': new_ride.user_longitude_at_request,
+            'timestamp': format_datetime_npt(new_ride.timestamp), # Send formatted time
+            'status': new_ride.status
+            # Add selected_vehicle_type if you store it on RideRequest
+        }
+        socketio.emit('new_ride_request', ride_data_for_driver_socket, room=driver_target_email_for_room)
+        print(f"DEBUG: Emitted 'new_ride_request' to driver room: {driver_target_email_for_room} for ride {new_ride.id}")
+        # --- END SOCKET.IO EMIT ---
+
+        return jsonify({'message': f'Ride requested successfully from driver {new_ride.driver_email}!', 'success': True})
+    except Exception as e:
+        db.session.rollback()
+        print(f"DATABASE ERROR during /request-ride commit or emit: {e}")
+        return jsonify({'message': 'Error processing your ride request. Please try again.', 'success': False}), 500
 
 @app.route('/accept-request', methods=['POST'])
 @login_required_driver
 def accept_request():
-    data=request.get_json(); req_id=data.get('id') if data else None
-    if not req_id: return jsonify({'error': 'ID missing', 'success': False}), 400
+    data = request.get_json()
+    if not data: return jsonify({'error': 'Invalid request', 'success': False}), 400
+    req_id = data.get('id')
+    if not req_id: return jsonify({'error': 'Request ID missing', 'success': False}), 400
+    
     req = RideRequest.query.get(req_id)
-    if not req or req.driver_email != session['driver'] or req.status != 'Pending': 
-        return jsonify({'error': 'Invalid request or not pending', 'success': False}), 400
+    if not req: return jsonify({'error': 'Request not found', 'success': False}), 404
+    if req.driver_email != session['driver']: return jsonify({'error': 'Unauthorized', 'success': False}), 403
+    if req.status != 'Pending': return jsonify({'error': f'Request is not pending (status: {req.status})', 'success': False}), 400
+    
     if req.user_latitude_at_request is None or req.user_longitude_at_request is None:
-        return jsonify({'error': 'User location missing for this ride.', 'success': False}), 400
-    try: 
-        req.status = 'accepted'; db.session.commit()
+        return jsonify({'error': 'Cannot accept: User location (lat/lng) for this specific request is missing.', 'success': False}), 400
+    
+    try:
+        req.status = 'accepted'
+        db.session.commit()
+
+        # --- SOCKET.IO EMIT for ride accepted ---
+        user_to_notify_email = req.user_email
+        driver_accepting = Driver.query.get(session['driver']) # Get current driver object
+        
+        acceptance_data = {
+            'ride_id': req.id,
+            'driver_name': driver_accepting.name if driver_accepting else "Your Driver",
+            'driver_node': driver_accepting.node if driver_accepting else None, # User map needs this
+            'driver_vehicle': driver_accepting.vehicle if driver_accepting else "N/A",
+            'user_latitude_for_route': req.user_latitude_at_request, # Send user's loc for consistency
+            'user_longitude_for_route': req.user_longitude_at_request,
+            'message': f"Your ride request (ID: {req.id}) has been accepted by {driver_accepting.name if driver_accepting else 'your driver'}!"
+        }
+        socketio.emit('ride_accepted', acceptance_data, room=user_to_notify_email)
+        print(f"DEBUG: Emitted 'ride_accepted' to user room: {user_to_notify_email} for ride {req.id}")
+        # --- END SOCKET.IO EMIT ---
+
         return jsonify({'success': True, 'message': 'Ride accepted'}), 200
     except Exception as e: 
-        db.session.rollback(); print(f"DBErr accept:{e}")
-        return jsonify({'error': 'DB error accepting ride', 'success': False}), 500
-
+        db.session.rollback()
+        print(f"DATABASE ERROR during /accept-request commit or emit: {e}")
+        return jsonify({'error': 'Database error or problem emitting notification while accepting request.', 'success': False}), 500
 @app.route('/reject-request', methods=['POST'])
 @login_required_driver
 def reject_request():
-    data=request.get_json(); req_id=data.get('id') if data else None
-    if not req_id: return jsonify({'error': 'ID missing', 'success': False}), 400
+    data = request.get_json()
+    if not data: return jsonify({'error': 'Invalid request', 'success': False}), 400
+    req_id = data.get('id')
+    if not req_id: return jsonify({'error': 'Request ID missing', 'success': False}), 400
+
     req = RideRequest.query.get(req_id)
-    if not req or req.driver_email != session['driver'] or req.status != 'Pending':
-        return jsonify({'error': 'Invalid request or not pending', 'success': False}), 400
-    try: 
-        req.status = 'rejected'; db.session.commit()
+    if not req: return jsonify({'error': 'Request not found', 'success': False}), 404
+    if req.driver_email != session['driver']: return jsonify({'error': 'Unauthorized', 'success': False}), 403
+    if req.status != 'Pending':
+        return jsonify({'error': f'Request is not pending (status: {req.status})', 'success': False}), 400
+    
+    try:
+        req.status = 'rejected'
+        db.session.commit()
+
+        # --- SOCKET.IO EMIT for ride rejected ---
+        user_to_notify_email = req.user_email
+        driver_rejecting = Driver.query.get(session['driver'])
+        rejection_data = {
+            'ride_id': req.id,
+            'driver_name': driver_rejecting.name if driver_rejecting else "A driver",
+            'message': f"Your ride request (ID: {req.id}) was rejected by {driver_rejecting.name if driver_rejecting else 'a driver'}."
+        }
+        socketio.emit('ride_rejected', rejection_data, room=user_to_notify_email)
+        print(f"DEBUG: Emitted 'ride_rejected' to user room: {user_to_notify_email} for ride {req.id}")
+        # --- END SOCKET.IO EMIT ---
         return jsonify({'success': True, 'message': 'Ride rejected'}), 200
     except Exception as e: 
-        db.session.rollback(); print(f"DBErr reject:{e}")
-        return jsonify({'error': 'DB error rejecting ride', 'success': False}), 500
+        db.session.rollback()
+        print(f"DATABASE ERROR during /reject-request commit or emit: {e}")
+        return jsonify({'error': 'Database error or problem emitting notification while rejecting request.', 'success': False}), 500
 
 @app.route('/complete-ride', methods=['POST'])
 @login_required_driver
 def complete_ride():
-    data=request.get_json(); ride_id=data.get('ride_id') if data else None
-    if not ride_id: return jsonify({'error': 'ID missing', 'success': False}), 400
+    data = request.get_json()
+    if not data: return jsonify({'error': 'Invalid request', 'success': False}), 400
+        
+    ride_id = data.get('ride_id')
+    if not ride_id:
+        return jsonify({'error': 'Ride ID missing in request', 'success': False}), 400
+
     ride = RideRequest.query.get(ride_id)
-    if not ride or ride.driver_email != session['driver']: 
-        return jsonify({'error': 'Invalid ride or unauthorized', 'success': False}), 400
+    if not ride:
+        return jsonify({'error': 'Ride not found in database', 'success': False}), 404
+    if ride.driver_email != session['driver']:
+        return jsonify({'error': 'Unauthorized: You cannot complete this ride', 'success': False}), 403
+    
     if ride.status != 'accepted': 
-        print(f"Warn: Completing ride {ride.id} not 'accepted' (was {ride.status})")
-    try: 
-        ride.status = 'completed'; db.session.commit()
-        return jsonify({'success': True, 'message': 'Ride completed'}), 200
+        print(f"Warning: Attempting to complete ride ID {ride.id} which was not in 'accepted' state (current status: {ride.status}).")
+        # Optionally, you could prevent completion if not 'accepted':
+        # return jsonify({'error': f'Ride status is "{ride.status}", cannot mark as completed.', 'success': False}), 400
+    
+    try:
+        ride.status = 'completed'
+        db.session.commit()
+
+        # --- SOCKET.IO EMIT for ride completed ---
+        user_to_notify_email = ride.user_email
+        driver_completing = Driver.query.get(session['driver'])
+        completion_data = {
+            'ride_id': ride.id,
+            'driver_name': driver_completing.name if driver_completing else "Your driver",
+            'message': f"Your ride (ID: {ride.id}) with {driver_completing.name if driver_completing else 'your driver'} has been completed. Thank you!"
+        }
+        socketio.emit('ride_completed', completion_data, room=user_to_notify_email)
+        print(f"DEBUG: Emitted 'ride_completed' to user room: {user_to_notify_email} for ride {ride.id}")
+        # --- END SOCKET.IO EMIT ---
+        return jsonify({'message': 'Ride marked as completed successfully!', 'success': True}), 200
     except Exception as e: 
-        db.session.rollback(); print(f"DBErr complete:{e}")
-        return jsonify({'error': 'DB error completing ride', 'success': False}), 500
+        db.session.rollback()
+        print(f"DATABASE ERROR during /complete-ride commit or emit: {e}")
+        return jsonify({'error': 'Database error or problem emitting notification while completing ride.', 'success': False}), 500
 
 # --- HTML Rendering Routes with Explicit No-Cache Headers ---
 @app.route('/dashboard') 
@@ -443,7 +567,7 @@ def user_dashboard():
                 'user_latitude_for_route': accepted_ride_db.user_latitude_at_request,
                 'user_longitude_for_route': accepted_ride_db.user_longitude_at_request,
                 'timestamp': format_datetime_npt(accepted_ride_db.timestamp),
-                'message': f"Your ride with {driver_obj.name} is confirmed! Driver is en route."
+                'message': f"Your ride with {driver_obj.name} is confirmed! Driver is on the way."
             }
         else:
             print(f"Warning (User Dashboard): Accepted ride ID {accepted_ride_db.id} has invalid location data. Driver Node: {driver_obj.node if driver_obj else 'N/A'}, User Lat: {accepted_ride_db.user_latitude_at_request}, User Lng: {accepted_ride_db.user_longitude_at_request}")
@@ -480,8 +604,7 @@ def user_dashboard():
 
     # --- Get unique vehicle types from Driver table for the dropdown ---
     vehicle_types_query = db.session.query(Driver.vehicle).filter(Driver.vehicle.isnot(None), Driver.vehicle != '').distinct().all()
-    # vehicle_types_query will be a list of tuples, e.g., [('Ambulance',), ('Fire Truck',)]
-    # Flatten it to a simple list of strings, handling None values or empty strings
+
     vehicle_types = sorted([vt[0] for vt in vehicle_types_query if vt[0]]) 
     print(f"[User Dashboard] Unique Vehicle Types Found: {vehicle_types}")
     # --- END Get unique vehicle types ---
@@ -661,7 +784,39 @@ def edit_driver_profile():
     response = make_response(render_template('edit_driver_profile.html', driver=driver, nodes=coordinates.keys(), title="Edit Driver Profile"))
     return add_no_cache_to_response(response)
 
+# app.py
+
+# ... (after all your HTTP routes) ...
+
+# --- SOCKET.IO Event Handlers ---
+@socketio.on('connect')
+def handle_connect():
+    # This event fires when a client's browser successfully establishes a WebSocket connection.
+    # The `request.sid` is a unique session ID for that WebSocket connection.
+    print(f"Client connected: {request.sid}")
+    # At this point, we don't know which user/driver it is yet,
+    # unless you implement authentication directly on connect (more advanced).
+
+@socketio.on('join') 
+def on_join(data): # 'data' will be the JSON object sent by the client, e.g., {'email': 'user@example.com'}
+    email_to_join = data.get('email')
+    if email_to_join:
+        join_room(email_to_join) # The client joins a room named after their email.
+        print(f"Client {request.sid} with email {email_to_join} joined room '{email_to_join}'.")
+        # Optional: send a confirmation back to the client that joined
+        emit('status_update', {'msg': f'Successfully joined room {email_to_join}.'}, room=request.sid) 
+    else:
+        print(f"Client {request.sid} attempted to join a room without providing an email.")
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    # This event fires when a client disconnects.
+    print(f"Client disconnected: {request.sid}")
+    # `leave_room` is often handled automatically on disconnect for rooms the SID was in.
+    # If you manually added sids to other logical rooms, you might clean them up here.
+    
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print("Starting Flask-SocketIO server with eventlet...")
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000, use_reloader=True) 

@@ -64,7 +64,8 @@
 
     function displayErrorOnMapContainer(message) { const mapDiv = document.getElementById('map'); if (mapDiv) { mapDiv.innerHTML = `<p style="padding:30px; text-align:center; color:red; font-weight:bold; font-size:1.1em; background-color: #ffe0e0; border: 1px solid red;">MAP INITIALIZATION ERROR:<br>${message}</p>`; } console.error("MAP ERROR:", message); }
 
-    document.addEventListener("DOMContentLoaded", function () {
+    document.addEventListener("DOMContentLoaded", function ()
+     {
       try {
           coordsDataForDriverNodesGlobal = {{ coords | tojson | safe }};
           pendingRequestsDataGlobal = {{ pending_requests | tojson | safe }};
@@ -102,6 +103,51 @@
           console.error("CRITICAL ERROR during Driver Dashboard map init:", error);
           displayErrorOnMapContainer(error.message + (error.stack ? "<br><pre>" + error.stack.substring(0,300) + "</pre>" : ""));
       }
+      try {
+            console.log("[DRIVER DASH] Attempting Socket.IO connection...");
+            socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
+
+            socket.on('connect', function() {
+                console.log('[DRIVER DASH] Socket.IO Connected! SID:', socket.id);
+                const driverEmail = "{{ driver.email if driver and driver.email else '' }}"; // Get email from Flask context
+                if (driverEmail) {
+                    console.log("[DRIVER DASH] Emitting 'join' event for email:", driverEmail);
+                    socket.emit('join', {email: driverEmail});
+                } else {
+                    console.warn("[DRIVER DASH] Driver email not available in template for joining room.");
+                }
+            });
+            
+            socket.on('connect_error', (error) => {
+                console.error('[DRIVER DASH] Socket.IO Connection Error:', error);
+            });
+            socket.on('disconnect', (reason) => {
+               console.log('[DRIVER DASH] Socket.IO Disconnected:', reason);
+            });
+
+            // Listen for new ride requests from the server
+            socket.on('new_ride_request', function(data) {
+                console.log('[DRIVER DASH] Received new_ride_request:', data);
+                // For a better UX, dynamically add to pending list without full reload
+                // For now, alert and reload.
+                if (document.hidden) { // If tab is not active, try a browser notification (needs permission)
+                    // This is a more advanced feature, just an idea for now
+                    // new Notification("New Ride Request!", { body: `From ${data.user_name}` });
+                    alert(`New Ride Request (tab was inactive): From ${data.user_name} at ${data.timestamp}. Please check your dashboard.`);
+                } else {
+                    alert(`New Ride Request: From ${data.user_name} at ${data.timestamp}`);
+                }
+                location.reload(); 
+            });
+
+            socket.on('status_update', function(data) { // For join confirmation
+                 console.log('[DRIVER DASH] Received status_update:', data.msg);
+            });
+
+        } catch (e) {
+            console.error("[DRIVER DASH] Error initializing Socket.IO:", e);
+        }
+        // --- END SOCKET.IO Connection ---
     });
 
     function updateActiveRideDisplay(hasUserLatLng) {
