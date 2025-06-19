@@ -128,11 +128,9 @@
             // Listen for new ride requests from the server
             socket.on('new_ride_request', function(data) {
                 console.log('[DRIVER DASH] Received new_ride_request:', data);
-                // For a better UX, dynamically add to pending list without full reload
-                // For now, alert and reload.
-                if (document.hidden) { // If tab is not active, try a browser notification (needs permission)
-                    // This is a more advanced feature, just an idea for now
-                    // new Notification("New Ride Request!", { body: `From ${data.user_name}` });
+              
+                // For, alert and reload.
+                if (document.hidden) { 
                     alert(`New Ride Request (tab was inactive): From ${data.user_name} at ${data.timestamp}. Please check your dashboard.`);
                 } else {
                     alert(`New Ride Request: From ${data.user_name} at ${data.timestamp}`);

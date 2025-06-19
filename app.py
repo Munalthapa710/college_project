@@ -114,13 +114,13 @@ def register():
 
         if not email:
             errors.append("Email is required.")
-        # Basic regex for email validation (not foolproof, but better)
+        # for email validation 
         elif not re.match(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", email):
             errors.append("Invalid email format.")
         
         if not phone:
             errors.append("Phone number is required.")
-        # Basic regex for phone: allows optional +, digits, hyphens, spaces, parentheses, min 7 digits
+        #for phone num
         elif not re.match(r"^\+?[\d\s\-()]{7,20}$", phone):
             errors.append("Invalid phone number format (e.g., +1234567890, 123-456-7890). Must be 7-20 digits/allowed characters.")
         
@@ -128,9 +128,6 @@ def register():
             errors.append("Password is required.")
         elif len(password) < 8:
             errors.append("Password must be at least 8 characters long.")
-        # Example: Add password complexity check (e.g., one uppercase, one number)
-        # elif not re.search(r"[A-Z]", password) or not re.search(r"[0-9]", password):
-        #     errors.append("Password must include at least one uppercase letter and one number.")
         
         if password != confirm_password:
             if password: 
@@ -344,10 +341,10 @@ def request_ride():
         RideRequest.user_email == user_email, 
         RideRequest.status.in_(['Pending', 'accepted'])
     ).update({'status': 'superseded'}, synchronize_session='fetch')
-    # db.session.commit() # Commit this update along with the new ride insertion
+   
 
     requesting_user = User.query.get(user_email)
-    if not requesting_user: # Should be caught by login_required_user if session is valid
+    if not requesting_user: 
         return jsonify({'message': 'Requesting user not found in database.', 'success': False}), 404
     
     if requesting_user.latitude is None or requesting_user.longitude is None:
@@ -358,13 +355,12 @@ def request_ride():
         driver_email=driver_email,
         user_latitude_at_request=requesting_user.latitude,
         user_longitude_at_request=requesting_user.longitude,
-        # timestamp defaults to datetime.now(timezone.utc)
         status='Pending'
     )
     db.session.add(new_ride)
     
     try:
-        db.session.commit() # Commits both supersede and new ride
+        db.session.commit()
         
         # --- SOCKET.IO EMIT for new ride request ---
         driver_target_email_for_room = new_ride.driver_email # The driver's email is the room name
@@ -484,8 +480,8 @@ def complete_ride():
     
     if ride.status != 'accepted': 
         print(f"Warning: Attempting to complete ride ID {ride.id} which was not in 'accepted' state (current status: {ride.status}).")
-        # Optionally, you could prevent completion if not 'accepted':
-        # return jsonify({'error': f'Ride status is "{ride.status}", cannot mark as completed.', 'success': False}), 400
+        
+         
     
     try:
         ride.status = 'completed'
@@ -708,8 +704,6 @@ def edit_user_profile():
         # Update password if new password is provided and matches confirmation
         if new_password:
             if new_password == confirm_password:
-                # In a real app, you would HASH this new_password before saving
-                # For example: user.password = generate_password_hash(new_password)
                 user.password = new_password 
                 flash('Password updated successfully.', 'success')
             else:
@@ -740,8 +734,6 @@ def edit_driver_profile():
         new_name = request.form.get('name', '').strip()
         new_phone = request.form.get('phone', '').strip()
         new_vehicle = request.form.get('vehicle', '').strip()
-        # Driver node changes might need more complex logic/validation if it impacts active operations
-        # For now, let's assume node is not changed here, or if it is, it's a valid node from `coordinates`.
         new_node = request.form.get('node') 
         new_password = request.form.get('new_password', '').strip()
         confirm_password = request.form.get('confirm_password', '').strip()
@@ -767,7 +759,7 @@ def edit_driver_profile():
 
         if new_password:
             if new_password == confirm_password:
-                driver.password = new_password # HASH this in real app
+                driver.password = new_password 
                 flash('Password updated.', 'success')
             else:
                 flash('New passwords do not match. Password not updated.', 'error')
@@ -784,21 +776,15 @@ def edit_driver_profile():
     response = make_response(render_template('edit_driver_profile.html', driver=driver, nodes=coordinates.keys(), title="Edit Driver Profile"))
     return add_no_cache_to_response(response)
 
-# app.py
-
-# ... (after all your HTTP routes) ...
-
 # --- SOCKET.IO Event Handlers ---
 @socketio.on('connect')
 def handle_connect():
     # This event fires when a client's browser successfully establishes a WebSocket connection.
     # The `request.sid` is a unique session ID for that WebSocket connection.
     print(f"Client connected: {request.sid}")
-    # At this point, we don't know which user/driver it is yet,
-    # unless you implement authentication directly on connect (more advanced).
 
 @socketio.on('join') 
-def on_join(data): # 'data' will be the JSON object sent by the client, e.g., {'email': 'user@example.com'}
+def on_join(data): # 'data' will be the JSON object sent by the client
     email_to_join = data.get('email')
     if email_to_join:
         join_room(email_to_join) # The client joins a room named after their email.
@@ -812,8 +798,6 @@ def on_join(data): # 'data' will be the JSON object sent by the client, e.g., {'
 def handle_disconnect():
     # This event fires when a client disconnects.
     print(f"Client disconnected: {request.sid}")
-    # `leave_room` is often handled automatically on disconnect for rooms the SID was in.
-    # If you manually added sids to other logical rooms, you might clean them up here.
     
 if __name__ == '__main__':
     with app.app_context():

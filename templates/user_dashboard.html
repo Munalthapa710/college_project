@@ -100,7 +100,7 @@
     function updateUserPreciseLocationAndSave(latlng) { const locMsgEl = document.getElementById('locationSetMessage'); const preciseLocDisplayEl = document.getElementById('currentUserPreciseLocation'); const subDisplayEl = document.getElementById('userClosestNodeSubDisplay'); const findBtn = document.getElementById('findNearestBtn'); locMsgEl.textContent = ""; if(preciseLocDisplayEl) preciseLocDisplayEl.textContent = `(${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)})`; if (userLiveMarker) { userLiveMarker.setLatLng(latlng).bindPopup(`Your Location: (${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)})`).openPopup(); } userClosestNodeKeyForDijkstra = findClosestNodeKeyToLatLng(latlng, coordsDataForDrivers, graphDataForDijkstra); if(subDisplayEl) subDisplayEl.style.display = 'none'; if (userClosestNodeKeyForDijkstra) { if(findBtn) { findBtn.disabled = false; findBtn.title = "Find Nearest Driver (Network Path)"; }} else { if(findBtn) { findBtn.disabled = true; findBtn.title = "Set location closer to a routable service point.";}} const latChanged = currentUserLatitude === null || Math.abs(currentUserLatitude - latlng.lat) > 1e-7; const lngChanged = currentUserLongitude === null || Math.abs(currentUserLongitude - latlng.lng) > 1e-7; if (latChanged || lngChanged) { fetch('/set-user-current-location', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({latitude:latlng.lat, longitude:latlng.lng})}).then(r=>r.json()).then(d=>{if(d.success){currentUserLatitude=d.latitude;currentUserLongitude=d.longitude;locMsgEl.textContent="Location Saved!";}else{locMsgEl.textContent="Could not save: "+(d.error||"");}setTimeout(()=>locMsgEl.textContent="",3000);}).catch(e=>{locMsgEl.textContent="Network Save Err.";setTimeout(()=>locMsgEl.textContent="",3000);});}else{locMsgEl.textContent="Location Confirmed.";setTimeout(()=>locMsgEl.textContent="",3000);} }
     function drawOrUpdateAllDriverMarkers() {
     console.log("[USER DASH] drawOrUpdateAllDriverMarkers called."); // Add log
-    for (const emailKey in allDriverMapMarkers) { // Use a different variable name than 'e' if 'e' is an event object in other scopes
+    for (const emailKey in allDriverMapMarkers) { 
         if (allDriverMapMarkers[emailKey] && map.hasLayer(allDriverMapMarkers[emailKey])) {
             map.removeLayer(allDriverMapMarkers[emailKey]);
         }
@@ -301,8 +301,7 @@
             socket.on('ride_accepted', function(data) {
                 console.log('[USER DASH] Received ride_accepted:', data);
                 alert(data.message || `Ride with ${data.driver_name} accepted!`); 
-                // For a better UX, update the DOM directly instead of reloading.
-                // For now, reload to refresh the current_ride_status display.
+                
                 location.reload(); 
             });
 
