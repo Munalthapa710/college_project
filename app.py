@@ -16,7 +16,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize SocketIO AFTER app configuration
-# Using eventlet for asynchronous operations. cors_allowed_origins="*" is for development convenience.
 socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 db = SQLAlchemy(app)
 
@@ -75,10 +74,7 @@ def login_required_driver(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# --- Cache Control Helper ---
-# The global @app.after_request was removed in favor of per-route explicit setting
 # for authenticated HTML pages.
-
 def add_no_cache_to_response(response):
     """Adds no-cache headers to a given Flask response object."""
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, public, max-age=0"
@@ -104,7 +100,7 @@ def register():
         form_data_to_pass = request.form.to_dict()
         errors = []
 
-        # --- Enhanced Validation Checks ---
+        # Validation Checks ---
         if not role:
             errors.append("Role selection is required.")
         if not name:
@@ -166,10 +162,9 @@ def register():
 
         
         if role == 'driver':
-            new_entity = Driver(email=email, name=name, phone=phone, password=password, vehicle=vehicle, node=node_from_form) # Use hashed_password
+            new_entity = Driver(email=email, name=name, phone=phone, password=password, vehicle=vehicle, node=node_from_form) 
         else: 
-            new_entity = User(email=email, name=name, phone=phone, password=password, latitude=None, longitude=None) # Use hashed_password
-        
+            new_entity = User(email=email, name=name, phone=phone, password=password, latitude=None, longitude=None) 
         db.session.add(new_entity)
         try: 
             db.session.commit()
@@ -178,9 +173,8 @@ def register():
         except Exception as e: 
             db.session.rollback()
             print(f"DATABASE COMMIT ERROR during registration: {e}")
-            flash(f"An unexpected error occurred: {str(e)[:100]}...", 'error') # Show a generic or truncated error
+            flash(f"An unexpected error occurred: {str(e)[:100]}...", 'error') 
             return render_template('register.html', nodes=coordinates.keys(), form_data=form_data_to_pass)
-
     return render_template('register.html', nodes=coordinates.keys(), form_data={})
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -191,11 +185,9 @@ def login():
         # Use .get with a default empty string and .strip() for safety
         email = request.form.get('username', '').strip().lower() 
         password = request.form.get('password', '')
-
         # Store submitted data to pass back to template if login fails
         form_data_to_pass = request.form.to_dict() 
 
-        # Basic validation for empty fields
         if not email or not password or not role:
             flash("All fields (Email, Password, Role) are required.", "error")
             return render_template('login.html', form_data=form_data_to_pass)
@@ -203,38 +195,28 @@ def login():
         login_successful = False
         if role == 'driver':
             driver = Driver.query.filter_by(email=email).first() # Query by normalized email
-            # IMPORTANT: In a real app, compare HASHED passwords
-            # if driver and check_password_hash(driver.password, password):
             if driver and driver.password == password: 
                 session['driver'] = driver.email
                 flash(f'Welcome back, {driver.name}!', 'success')
                 login_successful = True
-                # Check for 'next' URL parameter if you implement redirection after login
-                # next_url = request.args.get('next')
-                # return redirect(next_url or url_for('dashboard'))
                 return redirect(url_for('dashboard'))
         elif role == 'user':
             user = User.query.filter_by(email=email).first() # Query by normalized email
-            # IMPORTANT: In a real app, compare HASHED passwords
-            # if user and check_password_hash(user.password, password):
             if user and user.password == password: 
                 session['user'] = user.email
                 flash(f'Welcome back, {user.name}!', 'success')
                 login_successful = True
-                # next_url = request.args.get('next')
-                # return redirect(next_url or url_for('user_dashboard'))
                 return redirect(url_for('user_dashboard'))
         
         # If login was not successful after checking both roles
         if not login_successful:
             flash('Invalid email, password, or role. Please try again.', 'error')
-            # Re-render the login page with an error message and pre-filled email (but not password)
-            form_data_to_pass.pop('password', None) # Don't send password back
+            form_data_to_pass.pop('password', None)  # Re-render the login page with an error message and pre-filled email (but not password)
             return render_template('login.html', form_data=form_data_to_pass)
             
     # For GET request, render the login page
     return render_template('login.html', form_data=form_data_to_pass)
-# --- API-like routes (return JSON, no specific HTML cache headers needed here) ---
+
 @app.route('/set-user-current-location', methods=['POST'])
 @login_required_user
 def set_user_current_location():
@@ -252,10 +234,10 @@ def set_user_current_location():
         try: db.session.commit(); return jsonify({'success': True, 'latitude': lat, 'longitude': lng, 'message': f'Location updated to ({lat:.6f}, {lng:.6f})'}), 200
         except Exception as e: db.session.rollback(); print(f"DB Err: {e}"); return jsonify({'error': 'DB err setting loc', 'success': False}), 500
     return jsonify({'error': 'User not found', 'success': False}), 404
+
 @app.route('/find-nearest-driver-dijkstra', methods=['POST'])
 @login_required_user
 def find_nearest_driver_dijkstra():
-    # No need to check 'user' in session again due to @login_required_user
     data = request.get_json()
     if not data: 
         return jsonify({'error': 'Invalid request: No JSON data received', 'success': False}), 400
@@ -266,19 +248,14 @@ def find_nearest_driver_dijkstra():
     if not user_closest_node or user_closest_node not in graph or user_closest_node not in coordinates:
         return jsonify({'error': 'Invalid or missing user_closest_node for Dijkstra.', 'success': False}), 400
     
-    # Start with drivers who have a valid node that is also present in the graph definition
     driver_query = Driver.query.filter(Driver.node.isnot(None), Driver.node.in_(graph.keys()))
 
     # Further filter by vehicle type if one is selected
     if selected_vehicle_type:
         # Using SQLAlchemy's func.lower for case-insensitive comparison on the database side if possible
-        # For SQLite, ilike is often case-insensitive by default for ASCII, but explicit lower is safer across DBs.
         driver_query = driver_query.filter(db.func.lower(Driver.vehicle).contains(selected_vehicle_type))
-        # If you need exact match (case-insensitive):
-        # driver_query = driver_query.filter(db.func.lower(Driver.vehicle) == selected_vehicle_type)
-    
+       
     available_drivers = driver_query.all()
-    
     nearest_driver_info = None
     min_distance = float('inf')
 
@@ -304,20 +281,15 @@ def find_nearest_driver_dijkstra():
                     'graph_distance': round(min_distance, 2) if min_distance != float('inf') else "Unreachable", 
                     'path_nodes': path 
                 }
-            else: # Should not happen if distance is not inf, but a safeguard
-                 # If dijkstra returned a finite distance but shortest_path is empty, it indicates an issue
-                 # in how shortest_path reconstructs or if the graph has inconsistencies.
-                 # For now, if no path array, consider it not the best option.
-                if min_distance != float('inf'): # Only print warning if distance was finite
+            else:
+                if min_distance != float('inf'): 
                     print(f"Warning: Dijkstra found distance {min_distance} but shortest_path returned no path for {user_closest_node} to {driver.node}")
-                min_distance = float('inf') # Effectively disqualifies this driver if path not found
+                min_distance = float('inf') 
                 
     if nearest_driver_info: 
         return jsonify({'success': True, 'nearest_driver': nearest_driver_info})
-    
     message = f"No reachable '{selected_vehicle_type if selected_vehicle_type else 'drivers'}' found via network path."
     if not selected_vehicle_type and not available_drivers: message = "No drivers found on the network."
-
     return jsonify({'message': message, 'success': True, 'nearest_driver': None})
 
 @app.route('/request-ride', methods=['POST'])
@@ -336,13 +308,11 @@ def request_ride():
         
     user_email = session['user']
 
-    # Supersede previous active requests by this user
     RideRequest.query.filter(
         RideRequest.user_email == user_email, 
         RideRequest.status.in_(['Pending', 'accepted'])
     ).update({'status': 'superseded'}, synchronize_session='fetch')
    
-
     requesting_user = User.query.get(user_email)
     if not requesting_user: 
         return jsonify({'message': 'Requesting user not found in database.', 'success': False}), 404
@@ -373,7 +343,6 @@ def request_ride():
             'user_longitude': new_ride.user_longitude_at_request,
             'timestamp': format_datetime_npt(new_ride.timestamp), # Send formatted time
             'status': new_ride.status
-            # Add selected_vehicle_type if you store it on RideRequest
         }
         socketio.emit('new_ride_request', ride_data_for_driver_socket, room=driver_target_email_for_room)
         print(f"DEBUG: Emitted 'new_ride_request' to driver room: {driver_target_email_for_room} for ride {new_ride.id}")
@@ -404,11 +373,9 @@ def accept_request():
     try:
         req.status = 'accepted'
         db.session.commit()
-
         # --- SOCKET.IO EMIT for ride accepted ---
         user_to_notify_email = req.user_email
         driver_accepting = Driver.query.get(session['driver']) # Get current driver object
-        
         acceptance_data = {
             'ride_id': req.id,
             'driver_name': driver_accepting.name if driver_accepting else "Your Driver",
@@ -421,12 +388,12 @@ def accept_request():
         socketio.emit('ride_accepted', acceptance_data, room=user_to_notify_email)
         print(f"DEBUG: Emitted 'ride_accepted' to user room: {user_to_notify_email} for ride {req.id}")
         # --- END SOCKET.IO EMIT ---
-
         return jsonify({'success': True, 'message': 'Ride accepted'}), 200
     except Exception as e: 
         db.session.rollback()
         print(f"DATABASE ERROR during /accept-request commit or emit: {e}")
         return jsonify({'error': 'Database error or problem emitting notification while accepting request.', 'success': False}), 500
+
 @app.route('/reject-request', methods=['POST'])
 @login_required_driver
 def reject_request():
@@ -434,7 +401,6 @@ def reject_request():
     if not data: return jsonify({'error': 'Invalid request', 'success': False}), 400
     req_id = data.get('id')
     if not req_id: return jsonify({'error': 'Request ID missing', 'success': False}), 400
-
     req = RideRequest.query.get(req_id)
     if not req: return jsonify({'error': 'Request not found', 'success': False}), 404
     if req.driver_email != session['driver']: return jsonify({'error': 'Unauthorized', 'success': False}), 403
@@ -471,17 +437,13 @@ def complete_ride():
     ride_id = data.get('ride_id')
     if not ride_id:
         return jsonify({'error': 'Ride ID missing in request', 'success': False}), 400
-
     ride = RideRequest.query.get(ride_id)
     if not ride:
         return jsonify({'error': 'Ride not found in database', 'success': False}), 404
     if ride.driver_email != session['driver']:
         return jsonify({'error': 'Unauthorized: You cannot complete this ride', 'success': False}), 403
-    
     if ride.status != 'accepted': 
-        print(f"Warning: Attempting to complete ride ID {ride.id} which was not in 'accepted' state (current status: {ride.status}).")
-        
-         
+        print(f"Warning: Attempting to complete ride ID {ride.id} which was not in 'accepted' state (current status: {ride.status}).")       
     
     try:
         ride.status = 'completed'
@@ -509,8 +471,7 @@ def complete_ride():
 @login_required_driver
 def dashboard():
     driver = Driver.query.get(session['driver'])
-    # No additional null check needed due to decorator, but good for direct calls if any
-    # if not driver or not driver.node or driver.node not in coordinates: ...
+    
     pending_reqs_db = RideRequest.query.filter_by(driver_email=driver.email, status='Pending').order_by(RideRequest.timestamp.asc()).all()
     pending_serialized = []
     for r_db in pending_reqs_db:
@@ -534,7 +495,7 @@ def dashboard():
 @login_required_user
 def user_dashboard():
     user = User.query.get(session['user'])
-    if not user: # Should be caught by decorator, but good for direct calls
+    if not user: 
         session.pop('user', None)
         flash('User session not found, please log in again.', 'error')
         return redirect(url_for('login'))
@@ -546,8 +507,7 @@ def user_dashboard():
         for d in drivers_with_nodes if d.node in coordinates # Ensure node is in your defined coordinates
     ]
     
-    current_ride_status_info = None
-    # --- Logic to determine current_ride_status_info ---
+    current_ride_status_info = None #Ride status
     accepted_ride_db = RideRequest.query.filter_by(user_email=user.email, status='accepted').order_by(RideRequest.timestamp.desc()).first()
 
     if accepted_ride_db:
@@ -627,10 +587,10 @@ def driver_home():
     return add_no_cache_to_response(response)
 
 @app.route('/user-about')
-@login_required_user # Assuming you have this decorator
+@login_required_user 
 def user_about(): 
-    user = User.query.get(session.get('user')) # Fetch the current user
-    response = make_response(render_template('user_about.html', user=user)) # Pass user to template
+    user = User.query.get(session.get('user')) 
+    response = make_response(render_template('user_about.html', user=user)) 
     return add_no_cache_to_response(response)
 
 @app.route('/driver-about')
@@ -660,13 +620,11 @@ def driver_history():
 @login_required_driver
 def your_driver_route_function():
     driver = Driver.query.get(session.get('driver'))
-    if not driver: # Add this check just in case, though decorator should catch session issues
+    if not driver: 
         flash("Driver information not found for this session.", "error")
         session.clear()
         return redirect(url_for('login'))
     
-    # ... any other logic for this specific route ...
-
     # Ensure 'driver' is passed here
     response = make_response(render_template('the_driver_template.html', driver=driver ))
     return add_no_cache_to_response(response)
@@ -680,7 +638,7 @@ def logout():
 @login_required_user
 def edit_user_profile():
     user = User.query.get(session['user'])
-    if not user: # Should be caught by decorator, but good practice
+    if not user: 
         flash('User not found.', 'error')
         return redirect(url_for('login'))
 
@@ -697,7 +655,7 @@ def edit_user_profile():
             flash('Name updated successfully.', 'success')
         
         if new_phone and new_phone != user.phone:
-            # TODO: Add phone number validation if needed
+            # Add phone number validation if needed
             user.phone = new_phone
             flash('Phone number updated successfully.', 'success')
 
@@ -716,8 +674,7 @@ def edit_user_profile():
             print(f"Error updating user profile: {e}")
             flash('Error updating profile. Please try again.', 'error')
         
-        return redirect(url_for('edit_user_profile')) # Redirect back to profile page to see changes/errors
-
+        return redirect(url_for('edit_user_profile')) 
     response = make_response(render_template('edit_user_profile.html', user=user, title="Edit Your Profile"))
     return add_no_cache_to_response(response)
 
@@ -789,7 +746,6 @@ def on_join(data): # 'data' will be the JSON object sent by the client
     if email_to_join:
         join_room(email_to_join) # The client joins a room named after their email.
         print(f"Client {request.sid} with email {email_to_join} joined room '{email_to_join}'.")
-        # Optional: send a confirmation back to the client that joined
         emit('status_update', {'msg': f'Successfully joined room {email_to_join}.'}, room=request.sid) 
     else:
         print(f"Client {request.sid} attempted to join a room without providing an email.")

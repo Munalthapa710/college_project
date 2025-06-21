@@ -49,22 +49,16 @@
     /* Adjust as needed */
      font-weight: 700;
      color: #1A202C;
-    /* Very dark grey / black for logo text */
+
      margin-bottom: 5px;
-    /* If you use an image logo: img.auth-logo-img {
-         max-width: 200px;
-         margin-bottom: 10px;
-    }
-     */
+   
 }
  .logo-tagline {
      font-size: 1em;
      color: #718096;
-    /* Muted grey for tagline */
      margin-top: 0;
 }
 
-/* Separator "Or sign in with E-mail" */
  .auth-separator {
      display: flex;
      align-items: center;
@@ -198,7 +192,6 @@
 /* --- Illustration Section (Right Side) --- */
  .auth-illustration-section {
      flex: 1 1 50%;
-    /* Takes up roughly half the space */
      background-color: #E6FFFA;
     /* Very light mint green, like the example */
      display: flex;
@@ -211,7 +204,6 @@
  .auth-illustration-section img {
      max-width: 100%;
      max-height: 80vh;
-    /* Prevent image from being too tall */
      object-fit: contain;
     /* Scale image down to fit */
 }
@@ -265,7 +257,6 @@
     }
      .auth-form-wrapper {
          max-width: 400px;
-        /* Keep form itself from getting too wide */
          margin: 0 auto;
     }
 }
@@ -281,7 +272,6 @@
          font-size: 1em;
     }
 }
-/* static/css/dashboard_styles.css - Add these or integrate with existing form styles */
 
 .profile-edit-form {
     max-width: 600px;
@@ -315,7 +305,7 @@
     background-color: #f8f9fa;
 }
 .profile-edit-form .form-control:focus {
-    border-color: #007bff; /* Or your theme's primary color */
+    border-color: #007bff; 
     outline: 0;
     box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
     background-color: #fff;
@@ -335,10 +325,10 @@
 /* Flashes styling (if not already globally styled well) */
 .flashes { list-style-type: none; padding: 0; margin-bottom: 20px;}
 .flashes li { padding: 12px 18px; margin-bottom: 10px; border-radius: 5px; color: #fff; font-weight:500; }
-.flashes li.success { background-color: #28a745; } /* Green */
-.flashes li.error { background-color: #dc3545; }   /* Red */
-.flashes li.info { background-color: #17a2b8; }    /* Teal/Info Blue */
-.flashes li.warning { background-color: #ffc107; color: #212529; } /* Yellow */
+.flashes li.success { background-color: #28a745; } 
+.flashes li.error { background-color: #dc3545; }   
+.flashes li.info { background-color: #17a2b8; }    
+.flashes li.warning { background-color: #ffc107; color: #212529; } 
 .flashes { 
     list-style-type: none; 
     padding: 0; 
@@ -350,10 +340,10 @@
     border: 1px solid #FC8181;
     padding: 0.75rem 1.25rem; 
     margin-bottom: 1rem; 
-    border-radius: .375rem; /* Tailwind's rounded-md */
+    border-radius: .375rem; 
     font-weight: 500;
 }
-.flashes li.auth-flash-success { /* More specific class */
+.flashes li.auth-flash-success { 
     background-color: #F0FFF4; 
     color: #2F855A; 
     border: 1px solid #68D391;

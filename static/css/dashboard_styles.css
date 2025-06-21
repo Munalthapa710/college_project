@@ -1,5 +1,3 @@
-/* static/css/dashboard_styles.css */
-/* --- General Page Setup & Typography --- */
  body {
      font-family: 'Roboto', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
      margin: 0;
@@ -11,7 +9,6 @@
  nav.navbar {
      padding: 0.7rem 1.5rem;
      color: white;
-    /* Default text color for navbar items if not overridden */
      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
      display: flex;
      
@@ -51,7 +48,6 @@
  nav.driver-navbar {
      background-color: #343a40;
 }
-/* --- Main Content Area --- */
  .dashboard-content {
      padding: 25px;
      max-width: 1200px;
@@ -64,7 +60,7 @@
  .dashboard-content p {
      margin-bottom: 1rem;
 }
-/* --- Map Styling --- */
+
  .map-wrapper-fullwidth {
      width: 100%;
      margin-top: 20px;
@@ -84,7 +80,7 @@
      width: 100%;
      height: 100%;
 }
-/* --- Buttons and Interactive Elements --- */
+
  button, .button-style {
      background-color: #007bff;
      color: white;
@@ -125,7 +121,7 @@
  button.btn-secondary:hover, .button-style.btn-secondary:hover {
      background-color: #545b62;
 }
-/* --- Info/Notification Boxes --- */
+
  .info-box {
      margin-top: 15px;
      padding: 15px;
@@ -167,7 +163,7 @@
      padding: 10px;
      border-radius: 4px;
 }
-/* --- Request List Styling (for Driver Dashboard) --- */
+
  #requests .request-item {
      margin: 10px 0;
      padding: 15px;
@@ -278,25 +274,20 @@
     background-color: rgba(255, 255, 255, 0.1); 
 }
 
-/* --- MOST AGGRESSIVE ICON STYLING FOR NAVBAR TRIGGER --- */
-/* Target specific Font Awesome classes if you know them, e.g., .fa-user-circle */
 nav.navbar .navbar-profile .profile-image-clickable i.fas, 
 nav.navbar .navbar-profile .profile-image-clickable i.far { 
-    font-size: 1.7em !important; /* Slightly larger to ensure visibility */
+    font-size: 1.7em !important; 
     line-height: 1 !important; 
-    color: #FFFFFF !important; /* Hex for white, very explicit */
-    background: none !important; /* Ensure no background on the icon itself */
+    color: #FFFFFF !important;
+    background: none !important; 
     -webkit-font-smoothing: antialiased; 
     -moz-osx-font-smoothing: grayscale; 
-    /* The following targets the actual icon character if FA uses ::before */
-    /* You might not need both, but this is for maximum override */
-    text-shadow: none !important; /* Remove any text shadows */
+    text-shadow: none !important; 
 }
 
-/* If FontAwesome uses ::before for the icon character, try styling that too */
 nav.navbar .navbar-profile .profile-image-clickable i.fas::before,
 nav.navbar .navbar-profile .profile-image-clickable i.far::before {
-    color: #FFFFFF !important; /* Make the pseudo-element character white */
+    color: #FFFFFF !important; 
     background: none !important;
 }
 /* --- END OF AGGRESSIVE ICON STYLING --- */
@@ -369,14 +360,14 @@ nav.navbar .navbar-profile .profile-image-clickable i.far::before {
 
 
 .spinner-loader {
-    border: 4px solid #f3f3f3; /* Light grey */
-    border-top: 4px solid #3498db; /* Blue - or your theme's primary color */
+    border: 4px solid #f3f3f3; 
+    border-top: 4px solid #3498db; 
     border-radius: 50%;
     width: 30px;
     height: 30px;
     animation: spin 1s linear infinite;
-    margin: 10px auto; /* Center it if used in a block */
-    display: none; /* Hidden by default */
+    margin: 10px auto; 
+    display: none; 
 }
 
 @keyframes spin {
