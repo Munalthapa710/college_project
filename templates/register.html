@@ -27,7 +27,7 @@
             }
         }
         window.onload = function() {
-            // Set selected role based on form_data if it exists (from failed validation attempt)
+            // Set selected role based on form_data if it exists.
             const selectedRole = "{{ form_data.get('role', 'user') }}"; 
             const roleSelect = document.getElementById('role');
             if (roleSelect) {

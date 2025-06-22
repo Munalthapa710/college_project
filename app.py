@@ -295,7 +295,7 @@ def find_nearest_driver_dijkstra():
 @app.route('/request-ride', methods=['POST'])
 @login_required_user
 def request_ride():
-    if 'user' not in session: # Redundant due to decorator, but safe
+    if 'user' not in session: 
         return jsonify({'message': 'Not logged in', 'success': False}), 403
     
     data = request.get_json()
