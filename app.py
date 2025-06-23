@@ -252,7 +252,6 @@ def find_nearest_driver_dijkstra():
 
     # Further filter by vehicle type if one is selected
     if selected_vehicle_type:
-        # Using SQLAlchemy's func.lower for case-insensitive comparison on the database side if possible
         driver_query = driver_query.filter(db.func.lower(Driver.vehicle).contains(selected_vehicle_type))
        
     available_drivers = driver_query.all()
