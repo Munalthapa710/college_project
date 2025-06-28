@@ -49,6 +49,7 @@
                              {# Pre-select role if form_data exists #}
                             <option value="user" {% if form_data.get('role') == 'user' %}selected{% endif %}>User</option>
                             <option value="driver" {% if form_data.get('role') == 'driver' %}selected{% endif %}>Driver</option>
+                            <option value="admin" {% if form_data.get('role') == 'admin' %}selected{% endif %}>Admin</option>
                         </select>
                     </div>
                     <button type="submit" class="btn-submit">Sign In</button>

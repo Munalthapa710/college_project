@@ -1,0 +1,30 @@
+{% extends 'admin_base.html' %}
+{% block content %}
+<h2>Manage All Users</h2>
+<table border="1" style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+    <thead>
+        <tr style="background-color: #f2f2f2;">
+            <th style="padding: 10px;">Name</th>
+            <th style="padding: 10px;">Email</th>
+            <th style="padding: 10px;">Phone</th>
+            <th style="padding: 10px;">Last Known Lat/Lng</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for user in users %}
+    <tr>
+        <td style="padding: 10px;">{{ user.name }}</td>
+        <td style="padding: 10px;">{{ user.email }}</td>
+        <td style="padding: 10px;">{{ user.phone }}</td>
+        <td style="padding: 10px;">
+            {% if user.latitude and user.longitude %}
+                ({{ user.latitude|round(4) }}, {{ user.longitude|round(4) }})
+            {% else %}
+                Not Set
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

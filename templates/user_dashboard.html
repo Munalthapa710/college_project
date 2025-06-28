@@ -278,7 +278,8 @@
             console.log("[USER DASH] Attempting Socket.IO connection...");
             socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
 
-            socket.on('connect', function() {
+            socket.on('connect', function() 
+            {
                 console.log('[USER DASH] Socket.IO Connected! SID:', socket.id);
                 const userEmail = "{{ user.email if user and user.email else '' }}"; // Get email from Flask context
                 if (userEmail) {
@@ -289,6 +290,40 @@
                 }
             });
 
+            socket.on('new_suggestion', function(data) {
+    console.log('[USER DASH] Received new_suggestion:', data);
+    alert(data.message); // Notify the user
+
+    // Update the status display on the page
+    const notificationsDiv = document.getElementById('notifications');
+    if (notificationsDiv) {
+        notificationsDiv.innerHTML = `
+            <h4>Current Ride Status:</h4>
+            <p class="status-pending">
+                ${data.message}
+            </p>`;
+    }
+});
+
+// Listen for the final timeout if no other drivers are found
+socket.on('ride_timeout_no_drivers', function(data) {
+    console.log('[USER DASH] Received ride_timeout_no_drivers:', data);
+    alert(data.message);
+
+    const notificationsDiv = document.getElementById('notifications');
+    if (notificationsDiv) {
+        notificationsDiv.innerHTML = `
+            <h4>Current Ride Status:</h4>
+            <p class="status-rejected">
+                ${data.message}
+            </p>
+            <button onclick="findNearestAndShowPreview()" class="btn-secondary" style="margin-top: 10px;">
+                Try Finding a Driver Again
+            </button>`;
+    }
+    // Re-enable the main find button
+    document.getElementById('findNearestBtn').disabled = false;
+});
             socket.on('connect_error', (error) => {
                 console.error('[USER DASH] Socket.IO Connection Error:', error);
                 // Optionally display a user-friendly message on the page

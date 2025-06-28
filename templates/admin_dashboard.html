@@ -1,0 +1,100 @@
+{% extends 'admin_base.html' %}
+
+{% block content %}
+<h2>Admin Dashboard</h2>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <h3>Approved Drivers</h3>
+        <p>{{ stats.total_drivers }}</p>
+    </div>
+    <div class="stat-card">
+        <h3>Total Users</h3>
+        <p>{{ stats.total_users }}</p>
+    </div>
+    <div class="stat-card">
+        <h3>Pending Approvals</h3>
+        <p>{{ stats.pending_drivers }}</p>
+    </div>
+    <div class="stat-card">
+        <h3>Total Rides</h3>
+        <p>{{ stats.total_rides }}</p>
+    </div>
+</div>
+
+<h3>Driver Accounts Awaiting Approval</h3>
+{% if unapproved_drivers %}
+<table border="1" style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+    <thead>
+        <tr style="background-color: #f2f2f2;">
+            <th style="padding: 10px;">Name</th>
+            <th style="padding: 10px;">Email</th>
+            <th style="padding: 10px;">Phone</th>
+            <th style="padding: 10px;">Vehicle</th>
+            <th style="padding: 10px;">Node</th>
+            <th style="padding: 10px;">Action</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for driver in unapproved_drivers %}
+    <tr id="driver-row-{{ driver.email.replace('@', '_').replace('.', '_') }}">
+        <td style="padding: 10px;">{{ driver.name }}</td>
+        <td style="padding: 10px;">{{ driver.email }}</td>
+        <td style="padding: 10px;">{{ driver.phone }}</td>
+        <td style="padding: 10px;">{{ driver.vehicle }}</td>
+        <td style="padding: 10px;">{{ driver.node }}</td>
+        <td style="padding: 10px; text-align: center;">
+            <button class="btn-confirm" onclick="approveDriver('{{ driver.email }}')">Approve</button>
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No new driver registrations to approve.</p>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+    function approveDriver(email) {
+        if (!confirm(`Are you sure you want to approve the driver with email: ${email}?`)) {
+            return;
+        }
+
+        fetch(`/admin/approve-driver/${email}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Remove the row from the table for a smooth UI update
+                const rowId = `driver-row-${email.replace('@', '_').replace('.', '_')}`;
+                const row = document.getElementById(rowId);
+                if (row) {
+                    row.style.transition = 'opacity 0.5s ease';
+                    row.style.opacity = '0';
+                    setTimeout(() => {
+                        row.remove();
+                        // Optionally, refresh the whole page to update stats, or update them with JS
+                        window.location.reload(); 
+                    }, 500);
+                } else {
+                    // Fallback if the row isn't found for some reason
+                    window.location.reload();
+                }
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An unexpected error occurred.');
+        });
+    }
+</script>
+{% endblock %}

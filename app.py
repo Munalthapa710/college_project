@@ -8,14 +8,21 @@ from functools import wraps
 from dijkstra import dijkstra, shortest_path 
 from graph_with_coords import graph, coordinates 
 import os
-
+from werkzeug.security import generate_password_hash, check_password_hash 
+from apscheduler.schedulers.background import BackgroundScheduler
+from datetime import timedelta
 app = Flask(__name__)
 app.secret_key = os.urandom(24).hex() 
 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Initialize SocketIO AFTER app configuration
+
+os.makedirs(app.instance_path, exist_ok=True)
+
+scheduler = BackgroundScheduler()
+scheduler.start()
+
 socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
 db = SQLAlchemy(app)
 
@@ -31,6 +38,12 @@ def format_datetime_npt(dt_utc):
     return dt_npt.strftime('%Y-%m-%d %H:%M NPT')
 
 # --- Models ---
+class Admin(db.Model):
+    __tablename__ = 'admin'
+    email = db.Column(db.String(120), primary_key=True)
+    name = db.Column(db.String(100))
+    password = db.Column(db.String(256)) # Increased length for hash
+
 class RideRequest(db.Model):
     __tablename__ = 'ride_request'
     id = db.Column(db.Integer, primary_key=True)
@@ -45,7 +58,7 @@ class User(db.Model):
     email = db.Column(db.String(120), primary_key=True)
     name = db.Column(db.String(100))
     phone = db.Column(db.String(15))
-    password = db.Column(db.String(100)) 
+    password = db.Column(db.String(256)) # Increased length for hash
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
 
@@ -53,9 +66,46 @@ class Driver(db.Model):
     email = db.Column(db.String(120), primary_key=True)
     name = db.Column(db.String(100))
     phone = db.Column(db.String(15))
-    password = db.Column(db.String(100)) 
+    password = db.Column(db.String(256)) # Increased length for hash
     vehicle = db.Column(db.String(50))
     node = db.Column(db.String(10), nullable=False)
+    is_approved = db.Column(db.Boolean, default=False, nullable=False)
+
+# --- CLI COMMAND TO CREATE ADMIN ---
+@app.cli.command("create-admin")
+def create_admin_command():
+    """Creates the initial admin user for the application."""
+    
+    # Check if an admin already exists
+    if Admin.query.first():
+        print("An admin user already exists. Aborting.")
+        return
+
+    # --- CONFIGURE YOUR FIRST ADMIN HERE ---
+    admin_email = "admin@gmail.com"
+    admin_name = "System Administrator"
+    admin_password = "Admin123"  
+
+    # Hash the password for security
+    hashed_password = generate_password_hash(admin_password)
+
+    new_admin = Admin(
+        email=admin_email,
+        name=admin_name,
+        password=hashed_password
+    )
+
+    db.session.add(new_admin)
+    db.session.commit()
+    
+    print(f"Admin user '{admin_name}' with email '{admin_email}' created successfully.")
+    print("You can now log in with this account using the 'Admin' role.")
+    
+@app.cli.command("init-db")
+def init_db_command():
+    """Creates the database tables."""
+    db.create_all()
+    print("Initialized the database.")
 
 # --- Decorators for Authentication ---
 def login_required_user(f):
@@ -74,6 +124,15 @@ def login_required_driver(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def login_required_admin(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'admin' not in session:
+            flash("Admin access required.", "error")
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 # for authenticated HTML pages.
 def add_no_cache_to_response(response):
     """Adds no-cache headers to a given Flask response object."""
@@ -81,6 +140,115 @@ def add_no_cache_to_response(response):
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     return response
+
+def check_and_reroute_ride(ride_id, user_email):
+    """
+    A background job to check a ride request's status after a timeout.
+    If it's still pending, it finds the next nearest driver and re-assigns.
+    """
+    print(f"[JOB] Running check for ride_id: {ride_id}")
+    with app.app_context(): # IMPORTANT: Jobs run outside Flask's context
+        # Find the original request
+        original_request = db.session.get(RideRequest, ride_id)
+
+        # 1. Check if the ride is still pending
+        if not original_request or original_request.status != 'Pending':
+            print(f"[JOB] Ride {ride_id} is no longer pending. Status: {original_request.status if original_request else 'Not Found'}. Job finished.")
+            return
+
+        print(f"[JOB] Ride {ride_id} timed out. Finding next driver.")
+        # 2. Mark the original request as timed out
+        original_request.status = 'timed_out'
+        
+        # 3. Find the next nearest driver, EXCLUDING the one who just timed out
+        user = User.query.get(user_email)
+        if not user or user.latitude is None:
+            print("[JOB] User or user location not found. Cannot find next driver.")
+            db.session.commit()
+            return
+            
+        # This logic is similar to your find-nearest route, but excludes the previous driver
+        # For simplicity, we'll re-implement a small part of it here.
+        # A more advanced implementation might refactor this into a shared helper function.
+        
+        all_available_drivers = Driver.query.filter(
+            Driver.is_approved == True,
+            Driver.node.isnot(None),
+            Driver.email != original_request.driver_email # <-- Exclude the previous driver
+        ).all()
+
+        if not all_available_drivers:
+            print("[JOB] No other drivers available.")
+            socketio.emit('ride_timeout_no_drivers', {'message': 'Your request timed out and no other drivers are available.'}, room=user_email)
+            db.session.commit()
+            return
+            
+        # Find closest node to user (you can refactor this to a helper function)
+        user_latlng = (user.latitude, user.longitude)
+        closest_node_key = None
+        min_dist = float('inf')
+        for node, coord in coordinates.items():
+            dist = ( (user_latlng[0]-coord[0])**2 + (user_latlng[1]-coord[1])**2 )**0.5
+            if dist < min_dist:
+                min_dist = dist
+                closest_node_key = node
+        
+        if not closest_node_key:
+            print("[JOB] Could not determine user's closest node.")
+            db.session.commit()
+            return
+
+        # Find the next nearest driver using Dijkstra
+        next_driver_obj = None
+        min_path_dist = float('inf')
+        for driver in all_available_drivers:
+            if driver.node in graph:
+                path_dist = dijkstra(graph, closest_node_key, driver.node)
+                if path_dist < min_path_dist:
+                    min_path_dist = path_dist
+                    next_driver_obj = driver
+
+        if not next_driver_obj:
+            print("[JOB] Found other drivers, but none are reachable on the network graph.")
+            socketio.emit('ride_timeout_no_drivers', {'message': 'Your request timed out and no other reachable drivers were found.'}, room=user_email)
+            db.session.commit()
+            return
+
+        # 4. Create a new ride request for the next driver
+        print(f"[JOB] Re-assigning ride to next nearest driver: {next_driver_obj.name} ({next_driver_obj.email})")
+        new_ride = RideRequest(
+            user_email=user_email,
+            driver_email=next_driver_obj.email,
+            user_latitude_at_request=user.latitude,
+            user_longitude_at_request=user.longitude,
+            status='Pending'
+        )
+        db.session.add(new_ride)
+        db.session.commit() # Commit changes (timed_out status and new ride)
+
+        # 5. Schedule a check for this NEW ride request
+        run_time = datetime.now(timezone.utc) + timedelta(minutes=2)
+        scheduler.add_job(check_and_reroute_ride, 'date', run_date=run_time, args=[new_ride.id, user_email])
+        print(f"[JOB] Scheduled next check for new ride {new_ride.id} at {run_time.isoformat()}")
+
+        # 6. Notify the user and the NEW driver via WebSockets
+        # Notify user of the new suggestion
+        socketio.emit('new_suggestion', {
+            'message': f"Request to {original_request.driver_email} timed out. Now requesting from next nearest driver: {next_driver_obj.name}.",
+            'driver_name': next_driver_obj.name
+        }, room=user_email)
+        
+        # Notify the new driver of their new request
+        new_driver_data = {
+            'id': new_ride.id,
+            'user_name': user.name,
+            'user_email': user.email,
+            'user_latitude': new_ride.user_latitude_at_request,
+            'user_longitude': new_ride.user_longitude_at_request,
+            'timestamp': format_datetime_npt(new_ride.timestamp),
+            'status': new_ride.status
+        }
+        socketio.emit('new_ride_request', new_driver_data, room=next_driver_obj.email)
 
 # --- Routes ---
 @app.route('/')
@@ -135,6 +303,7 @@ def register():
         if role == 'driver':
             vehicle = request.form.get('vehicle', '').strip()
             node_from_form = request.form.get('node') 
+            
             if not vehicle:
                 errors.append("Vehicle information is required for drivers.")
             elif len(vehicle) < 2 or len(vehicle) > 50:
@@ -196,10 +365,14 @@ def login():
         if role == 'driver':
             driver = Driver.query.filter_by(email=email).first() # Query by normalized email
             if driver and driver.password == password: 
+                if not driver.is_approved:
+                    flash('Your driver account is pending approval from an administrator.', 'warning')
+                    return render_template('login.html', form_data=form_data_to_pass)
                 session['driver'] = driver.email
                 flash(f'Welcome back, {driver.name}!', 'success')
                 login_successful = True
                 return redirect(url_for('dashboard'))
+            
         elif role == 'user':
             user = User.query.filter_by(email=email).first() # Query by normalized email
             if user and user.password == password: 
@@ -208,6 +381,13 @@ def login():
                 login_successful = True
                 return redirect(url_for('user_dashboard'))
         
+        elif role == 'admin':
+            admin = Admin.query.filter_by(email=email).first()
+            if admin and check_password_hash(admin.password, password):
+                session['admin'] = admin.email
+                flash(f'Welcome, Administrator {admin.name}!', 'success')
+                return redirect(url_for('admin_dashboard'))
+            
         # If login was not successful after checking both roles
         if not login_successful:
             flash('Invalid email, password, or role. Please try again.', 'error')
@@ -252,7 +432,6 @@ def find_nearest_driver_dijkstra():
 
     # Further filter by vehicle type if one is selected
     if selected_vehicle_type:
-        # Using SQLAlchemy's func.lower for case-insensitive comparison on the database side if possible
         driver_query = driver_query.filter(db.func.lower(Driver.vehicle).contains(selected_vehicle_type))
        
     available_drivers = driver_query.all()
@@ -331,7 +510,18 @@ def request_ride():
     
     try:
         db.session.commit()
-        
+                # --- SCHEDULE THE TIMEOUT CHECK ---
+        # Run the job 2 minutes from now
+        run_time = datetime.now(timezone.utc) + timedelta(minutes=2)
+        scheduler.add_job(
+            check_and_reroute_ride, 
+            'date', 
+            run_date=run_time, 
+            args=[new_ride.id, user_email] # Pass the ride_id and user_email to the job
+        )
+        print(f"[SCHEDULER] Job scheduled for ride ID {new_ride.id} at {run_time.isoformat()}")
+        # --- END SCHEDULING ---
+
         # --- SOCKET.IO EMIT for new ride request ---
         driver_target_email_for_room = new_ride.driver_email # The driver's email is the room name
         
@@ -501,11 +691,13 @@ def user_dashboard():
         return redirect(url_for('login'))
 
     # Get list of drivers with valid nodes for "Find Nearest" functionality
-    drivers_with_nodes = Driver.query.filter(Driver.node.isnot(None)).all()
+    drivers_with_nodes = Driver.query.filter(
+    Driver.node.isnot(None), 
+    Driver.is_approved == True ).all()
+
     driver_list_for_js = [
-        {'email': d.email, 'name': d.name, 'vehicle': d.vehicle, 'node': d.node}
-        for d in drivers_with_nodes if d.node in coordinates # Ensure node is in your defined coordinates
-    ]
+    {'email': d.email, 'name': d.name, 'vehicle': d.vehicle, 'node': d.node}
+    for d in drivers_with_nodes if d.node in coordinates]
     
     current_ride_status_info = None #Ride status
     accepted_ride_db = RideRequest.query.filter_by(user_email=user.email, status='accepted').order_by(RideRequest.timestamp.desc()).first()
@@ -733,6 +925,80 @@ def edit_driver_profile():
     response = make_response(render_template('edit_driver_profile.html', driver=driver, nodes=coordinates.keys(), title="Edit Driver Profile"))
     return add_no_cache_to_response(response)
 
+@app.route('/admin/dashboard')
+@login_required_admin
+def admin_dashboard():
+    admin = Admin.query.get(session['admin'])
+    unapproved_drivers = Driver.query.filter_by(is_approved=False).all()
+    
+    # Some quick stats for the dashboard
+    stats = {
+        'total_users': User.query.count(),
+        'total_drivers': Driver.query.filter_by(is_approved=True).count(),
+        'pending_drivers': len(unapproved_drivers),
+        'total_rides': RideRequest.query.count()
+    }
+    
+    response = make_response(render_template(
+        'admin_dashboard.html', 
+        admin=admin, 
+        unapproved_drivers=unapproved_drivers,
+        stats=stats
+    ))
+    return add_no_cache_to_response(response)
+
+@app.route('/admin/approve-driver/<driver_email>', methods=['POST'])
+@login_required_admin
+def approve_driver(driver_email):
+    driver = Driver.query.get(driver_email)
+    if not driver:
+        return jsonify({'success': False, 'message': 'Driver not found.'}), 404
+    
+    driver.is_approved = True
+    db.session.commit()
+    
+    # Optional: Send an email or notification to the driver
+    
+    flash(f"Driver '{driver.name}' has been approved.", "success")
+    return jsonify({'success': True, 'message': f"Driver {driver.name} approved."})
+
+@app.route('/admin/manage-users')
+@login_required_admin
+def manage_users():
+    admin = Admin.query.get(session['admin'])
+    all_users = User.query.all()
+    response = make_response(render_template('admin_manage_users.html', admin=admin, users=all_users))
+    return add_no_cache_to_response(response)
+
+@app.route('/admin/manage-drivers')
+@login_required_admin
+def manage_drivers():
+    admin = Admin.query.get(session['admin'])
+    all_drivers = Driver.query.order_by(Driver.is_approved.asc()).all()
+    response = make_response(render_template('admin_manage_drivers.html', admin=admin, drivers=all_drivers))
+    return add_no_cache_to_response(response)
+
+@app.route('/admin/ride-history')
+@login_required_admin
+def global_ride_history():
+    admin = Admin.query.get(session['admin'])
+    all_rides = RideRequest.query.order_by(RideRequest.timestamp.desc()).all()
+    
+    # Enrich ride data with user and driver names
+    enriched_rides = []
+    for ride in all_rides:
+        user = User.query.get(ride.user_email)
+        driver = Driver.query.get(ride.driver_email)
+        enriched_rides.append({
+            'ride': ride,
+            'user_name': user.name if user else 'N/A',
+            'driver_name': driver.name if driver else 'N/A',
+            'timestamp': format_datetime_npt(ride.timestamp) # Use your existing helper
+        })
+
+    response = make_response(render_template('admin_ride_history.html', admin=admin, rides=enriched_rides))
+    return add_no_cache_to_response(response)
+
 # --- SOCKET.IO Event Handlers ---
 @socketio.on('connect')
 def handle_connect():
@@ -756,7 +1022,5 @@ def handle_disconnect():
     print(f"Client disconnected: {request.sid}")
     
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     print("Starting Flask-SocketIO server with eventlet...")
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000, use_reloader=True) 
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000, use_reloader=True)
