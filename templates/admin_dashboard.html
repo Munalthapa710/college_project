@@ -45,6 +45,7 @@
         <td style="padding: 10px;">{{ driver.node }}</td>
         <td style="padding: 10px; text-align: center;">
             <button class="btn-confirm" onclick="approveDriver('{{ driver.email }}')">Approve</button>
+             <button class="btn-cancel" style="margin-left: 5px;" onclick="disapproveDriver('{{ driver.email }}')">Disapprove</button>
         </td>
     </tr>
     {% endfor %}
@@ -58,6 +59,23 @@
 
 {% block scripts_extra %}
 <script>
+        function removeDriverRow(email) {
+        const rowId = `driver-row-${email.replace('@', '_').replace('.', '_')}`;
+        const row = document.getElementById(rowId);
+        if (row) {
+            row.style.transition = 'opacity 0.5s ease';
+            row.style.opacity = '0';
+            setTimeout(() => {
+                row.remove();
+                // We reload to update the stats cards on the dashboard
+                window.location.reload(); 
+            }, 500);
+        } else {
+            // Fallback if the row isn't found
+            window.location.reload();
+        }
+    }
+
     function approveDriver(email) {
         if (!confirm(`Are you sure you want to approve the driver with email: ${email}?`)) {
             return;
@@ -87,6 +105,27 @@
                     // Fallback if the row isn't found for some reason
                     window.location.reload();
                 }
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An unexpected error occurred.');
+        });
+    }
+    
+    function disapproveDriver(email) {
+        if (!confirm(`Are you sure you want to DISAPPROVE and DELETE the pending registration for: ${email}? This action cannot be undone.`)) {
+            return;
+        }
+
+        fetch(`/admin/disapprove-driver/${email}`, { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // We reuse the same function to remove the row from the table
+                removeDriverRow(email);
             } else {
                 alert('Error: ' + data.message);
             }

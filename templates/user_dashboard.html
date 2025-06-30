@@ -69,6 +69,8 @@
     let previewDijkstraPathLayer = null;
     let currentNearestDriverForConfirmation = null;
     let socket;
+    let poiRouteControl = null;
+    let serviceMarkersLayer = L.layerGroup();
 
     let currentUserLatitude = {{ user.latitude|tojson if user.latitude is not none else 'null' }};
     let currentUserLongitude = {{ user.longitude|tojson if user.longitude is not none else 'null' }};
@@ -94,7 +96,93 @@
     const genericDriverIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
     const enRouteDriverIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
     const previewDriverIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
+const hospitalIcon = new L.Icon({
+        iconUrl: "{{ url_for('static', filename='images/hospital-icon.png') }}",
+        iconSize: [35, 35], iconAnchor: [17, 35], popupAnchor: [0, -35]
+    });
+    const policeIcon = new L.Icon({
+        iconUrl: "{{ url_for('static', filename='images/police-icon.png') }}",
+        iconSize: [35, 35], iconAnchor: [17, 35], popupAnchor: [0, -35]
+    });
+    const chargingStationIcon = new L.Icon({
+        iconUrl: "{{ url_for('static', filename='images/charging-station-icon.png') }}",
+        iconSize: [35, 35], iconAnchor: [17, 35], popupAnchor: [0, -35]
+    });
+    const petrolStationIcon = new L.Icon({
+        iconUrl: "{{ url_for('static', filename='images/petrol-station-icon.png') }}",
+        iconSize: [35, 35], iconAnchor: [17, 35], popupAnchor: [0, -35]
+    });
 
+    const allServicesData = JSON.parse('{{ services | tojson | safe }}');
+
+    function drawServiceMarkers() 
+    {
+        if (!allServicesData) return;
+
+        const iconMap = {
+            "hospitals": hospitalIcon,
+            "police_stations": policeIcon,
+            "charging_stations": chargingStationIcon,
+            "petrol_stations": petrolStationIcon
+        };
+         for (const category in allServicesData) {
+            const icon = iconMap[category] || L.Icon.Default(); // Fallback to default icon
+            const services = allServicesData[category];
+
+            services.forEach(service => {
+                const serviceLatLng = L.latLng(service.lat, service.lng);
+                
+                // Create the content for the popup, including the "Route" button
+                const popupContent = `
+                    <b>${service.name}</b><br>
+                    <button class="button-style btn-secondary" style="padding: 5px 10px; margin-top: 5px;" 
+                            onclick="routeToService(${service.lat}, ${service.lng})">
+                        Route to here
+                    </button>
+                `;
+
+                const marker = L.marker(serviceLatLng, { icon: icon })
+                    .bindPopup(popupContent);
+                
+                serviceMarkersLayer.addLayer(marker);
+            });
+        }
+        // Add the entire layer group to the map
+        serviceMarkersLayer.addTo(map);
+    }
+     window.routeToService = function(lat, lng) {
+        if (!userLiveMarker) {
+            alert("Please set your location on the map first.");
+            return;
+        }
+        
+        // Remove any previous POI route from the map
+        if (poiRouteControl) {
+            map.removeControl(poiRouteControl);
+        }
+
+        const userLatLng = userLiveMarker.getLatLng();
+        const serviceLatLng = L.latLng(lat, lng);
+
+        poiRouteControl = L.Routing.control({
+            waypoints: [userLatLng, serviceLatLng],
+            routeWhileDragging: false,
+            show: true,
+            addWaypoints: false,
+            lineOptions: { styles: [{color: 'purple', opacity: 0.8, weight: 6}] },
+            // We can show the default markers for start/end of this specific route
+            createMarker: function(i, waypoint, n) {
+                const marker = L.marker(waypoint.latLng, {
+                    draggable: false,
+                    icon: (i === 0) ? userIcon : L.Icon.Default() // Use user icon for start
+                });
+                return marker;
+            }
+        }).addTo(map);
+
+        // Close the popup after clicking the button
+        map.closePopup();
+    }
     function displayErrorOnMapContainer(message, errorObj) { const mapLoadingText = document.getElementById('mapLoadingText'); const mapDiv = document.getElementById('map'); if (mapLoadingText) mapLoadingText.style.display = 'none'; let detailedError = message; if (errorObj && errorObj.stack) { detailedError += "<br><pre style='font-size:0.8em; text-align:left; white-space:pre-wrap;word-break:break-all;'>" + errorObj.stack.substring(0,500) + "...</pre>"; } else if (errorObj) { detailedError += "<br><pre style='font-size:0.8em; text-align:left; white-space:pre-wrap;word-break:break-all;'>" + JSON.stringify(errorObj, null, 2) + "</pre>"; } if (mapDiv) { mapDiv.innerHTML = `<p style="padding:20px; text-align:center; color:red; font-weight:bold; font-size:1.1em; background-color: #ffe0e0; border: 1px solid red;">MAP INIT ERROR:<br>${detailedError}</p>`;} console.error("MAP ERROR:", message, errorObj); }
     function findClosestNodeKeyToLatLng(latlng, availableNodeCoords, routableGraph) { let closestKey = null; let minDist = Infinity; if (!availableNodeCoords || typeof availableNodeCoords !== 'object' || Object.keys(availableNodeCoords).length === 0) { console.warn("[findClosestNodeKeyToLatLng] availableNodeCoords data missing."); return null;} if (!routableGraph || typeof routableGraph !== 'object' || Object.keys(routableGraph).length === 0) { console.warn("[findClosestNodeKeyToLatLng] routableGraph data missing.");} for (const nodeKey in availableNodeCoords) { if (availableNodeCoords.hasOwnProperty(nodeKey)) { if (routableGraph && !routableGraph.hasOwnProperty(nodeKey)) continue; const nodeCoordArray = availableNodeCoords[nodeKey]; if(Array.isArray(nodeCoordArray) && nodeCoordArray.length === 2 && typeof nodeCoordArray[0] === 'number' && typeof nodeCoordArray[1] === 'number') { const nodeLatLng = L.latLng(nodeCoordArray[0], nodeCoordArray[1]); const dist = latlng.distanceTo(nodeLatLng); if (dist < minDist) { minDist = dist; closestKey = nodeKey; }} }} console.log("[findClosestNodeKeyToLatLng] Determined closest routable node:", closestKey); return closestKey; }
     function updateUserPreciseLocationAndSave(latlng) { const locMsgEl = document.getElementById('locationSetMessage'); const preciseLocDisplayEl = document.getElementById('currentUserPreciseLocation'); const subDisplayEl = document.getElementById('userClosestNodeSubDisplay'); const findBtn = document.getElementById('findNearestBtn'); locMsgEl.textContent = ""; if(preciseLocDisplayEl) preciseLocDisplayEl.textContent = `(${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)})`; if (userLiveMarker) { userLiveMarker.setLatLng(latlng).bindPopup(`Your Location: (${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)})`).openPopup(); } userClosestNodeKeyForDijkstra = findClosestNodeKeyToLatLng(latlng, coordsDataForDrivers, graphDataForDijkstra); if(subDisplayEl) subDisplayEl.style.display = 'none'; if (userClosestNodeKeyForDijkstra) { if(findBtn) { findBtn.disabled = false; findBtn.title = "Find Nearest Driver (Network Path)"; }} else { if(findBtn) { findBtn.disabled = true; findBtn.title = "Set location closer to a routable service point.";}} const latChanged = currentUserLatitude === null || Math.abs(currentUserLatitude - latlng.lat) > 1e-7; const lngChanged = currentUserLongitude === null || Math.abs(currentUserLongitude - latlng.lng) > 1e-7; if (latChanged || lngChanged) { fetch('/set-user-current-location', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({latitude:latlng.lat, longitude:latlng.lng})}).then(r=>r.json()).then(d=>{if(d.success){currentUserLatitude=d.latitude;currentUserLongitude=d.longitude;locMsgEl.textContent="Location Saved!";}else{locMsgEl.textContent="Could not save: "+(d.error||"");}setTimeout(()=>locMsgEl.textContent="",3000);}).catch(e=>{locMsgEl.textContent="Network Save Err.";setTimeout(()=>locMsgEl.textContent="",3000);});}else{locMsgEl.textContent="Location Confirmed.";setTimeout(()=>locMsgEl.textContent="",3000);} }
@@ -242,7 +330,8 @@
 
           drawOrUpdateAllDriverMarkers();
           console.log("[USER DASH] All driver markers drawn/updated.");
-
+          drawServiceMarkers();
+          
           if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' &&
               currentRideStatusFromServer.driver_node && coordsDataForDrivers[currentRideStatusFromServer.driver_node] &&
               currentRideStatusFromServer.user_latitude_for_route !== null &&

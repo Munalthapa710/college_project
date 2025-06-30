@@ -20,6 +20,23 @@ graph = {
     'F': {'A': 1.0, 'D': 3.5}
 }
 
+# testing
+emergency_services = {
+    "hospitals": [
+        {"name": "City General Hospital", "lat": 27.705, "lng": 85.33},
+        {"name": "Valley Health Clinic", "lat": 27.685, "lng": 85.325}
+    ],
+    "police_stations": [
+        {"name": "Central Police HQ", "lat": 27.71, "lng": 85.31},
+        {"name": "District Police Office", "lat": 27.69, "lng": 85.34}
+    ],
+    "charging_stations": [
+        {"name": "EV Fast Charge Point", "lat": 27.72, "lng": 85.30}
+    ],
+    "petrol_stations": [
+        {"name": "National Petrol Pump", "lat": 27.675, "lng": 85.305}
+    ]
+}
 # Ensure all nodes in graph keys are in coordinates
 for node in graph:
     if node not in coordinates:

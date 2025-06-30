@@ -6,7 +6,7 @@ import pytz
 import re
 from functools import wraps 
 from dijkstra import dijkstra, shortest_path 
-from graph_with_coords import graph, coordinates 
+from graph_with_coords import graph, coordinates ,emergency_services
 import os
 from werkzeug.security import generate_password_hash, check_password_hash 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -371,7 +371,7 @@ def login():
                 session['driver'] = driver.email
                 flash(f'Welcome back, {driver.name}!', 'success')
                 login_successful = True
-                return redirect(url_for('dashboard'))
+                return redirect(url_for('driver_home'))
             
         elif role == 'user':
             user = User.query.filter_by(email=email).first() # Query by normalized email
@@ -379,7 +379,7 @@ def login():
                 session['user'] = user.email
                 flash(f'Welcome back, {user.name}!', 'success')
                 login_successful = True
-                return redirect(url_for('user_dashboard'))
+                return redirect(url_for('user_home'))
         
         elif role == 'admin':
             admin = Admin.query.filter_by(email=email).first()
@@ -763,7 +763,8 @@ def user_dashboard():
                                                 coords=coordinates, # For driver node locations
                                                 current_ride_status=current_ride_status_info, 
                                                 graph_for_js=graph, # For Dijkstra path visualization
-                                                vehicle_types=vehicle_types)) # Pass to template
+                                                vehicle_types=vehicle_types,
+                                                services=emergency_services )) # Pass to template
     return add_no_cache_to_response(response)
 
 @app.route('/user-home')
@@ -957,10 +958,28 @@ def approve_driver(driver_email):
     driver.is_approved = True
     db.session.commit()
     
-    # Optional: Send an email or notification to the driver
-    
     flash(f"Driver '{driver.name}' has been approved.", "success")
     return jsonify({'success': True, 'message': f"Driver {driver.name} approved."})
+
+@app.route('/admin/disapprove-driver/<driver_email>', methods=['POST'])
+@login_required_admin
+def disapprove_driver(driver_email):
+    """
+    Deletes a driver's pending registration record.
+    """
+    driver = Driver.query.filter_by(email=driver_email, is_approved=False).first()
+    
+    if not driver:
+        # We check for is_approved=False to prevent accidentally deleting an active driver.
+        return jsonify({'success': False, 'message': 'Pending driver not found or is already approved.'}), 404
+    
+    driver_name = driver.name # Get name before deleting
+    
+    db.session.delete(driver)
+    db.session.commit()
+    
+    flash(f"Pending registration for '{driver_name}' has been disapproved and removed.", "success")
+    return jsonify({'success': True, 'message': f"Pending registration for {driver_name} removed."})
 
 @app.route('/admin/manage-users')
 @login_required_admin
