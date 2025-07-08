@@ -709,6 +709,7 @@ def user_dashboard():
            accepted_ride_db.user_latitude_at_request is not None and \
            accepted_ride_db.user_longitude_at_request is not None:
             current_ride_status_info = {
+                'ride_id': accepted_ride_db.id,
                 'type': 'accepted', 
                 'driver_name': driver_obj.name,
                 'driver_node': driver_obj.node, 
@@ -1039,7 +1040,43 @@ def on_join(data): # 'data' will be the JSON object sent by the client
 def handle_disconnect():
     # This event fires when a client disconnects.
     print(f"Client disconnected: {request.sid}")
-    
+@socketio.on('send_chat_message')
+def handle_chat_message(data):
+    """Handle receiving a chat message and relaying it."""
+    message_text = data.get('message')
+    ride_id = data.get('ride_id')
+    sender_role = data.get('role') # 'user' or 'driver'
+
+    if not all([message_text, ride_id, sender_role]):
+        # Ignore malformed messages
+        return
+
+    # Find the active ride to get the recipient's email
+    active_ride = db.session.get(RideRequest, ride_id)
+    if not active_ride or active_ride.status != 'accepted':
+        # Don't relay messages for non-active rides
+        return
+
+    if sender_role == 'user':
+        # User is sending, so the recipient is the driver
+        recipient_email = active_ride.driver_email
+    elif sender_role == 'driver':
+        # Driver is sending, so the recipient is the user
+        recipient_email = active_ride.user_email
+    else:
+        return # Invalid role
+
+    # Prepare the payload to send to the recipient
+    message_payload = {
+        'message': message_text,
+        'sender': sender_role
+    }
+
+    # Emit the message to the recipient's private room (their email)
+    socketio.emit('receive_chat_message', message_payload, room=recipient_email)
+    print(f"Relayed chat message for ride {ride_id} from {sender_role} to {recipient_email}: {message_text}")
+
+
 if __name__ == '__main__':
     print("Starting Flask-SocketIO server with eventlet...")
     socketio.run(app, debug=True, host='0.0.0.0', port=5000, use_reloader=True)

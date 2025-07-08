@@ -7,10 +7,6 @@ coordinates = {
     'F': (27.7250, 85.3150)   
 }
 
-# Graph representing network connectivity and "distance" or "cost" between nodes
-# This is used by Dijkstra algorithm.
-# Ensure all nodes used as keys here are also in the `coordinates` dictionary.
-# Ensure all nodes used as values in the inner dictionaries are also top-level keys.
 graph = {
     'A': {'B': 2.5, 'F': 1.0},
     'B': {'A': 2.5, 'C': 3.0, 'D': 4.5},

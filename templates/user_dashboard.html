@@ -4,6 +4,101 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
+   <style>
+        /* --- Temporary Chat Box Styles --- */
+        .chat-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 320px;
+            max-width: 90vw;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: none; /* Initially hidden */
+            flex-direction: column;
+            z-index: 1010;
+        }
+        .chat-header {
+            background-color: #343a40; /* Driver navbar color */
+            color: white;
+            padding: 10px 15px;
+            border-top-left-radius: 7px;
+            border-top-right-radius: 7px;
+            font-weight: bold;
+            cursor: pointer; 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .chat-toggle-btn
+         {
+           background: none;
+             border: none;
+               color: white;
+                 font-size: 1.5em;
+                  font-weight: bold;
+                    line-height: 1;
+                      padding: 0 5px;
+                        cursor: pointer;
+}
+        .chat-messages {
+            list-style: none;
+            padding: 10px;
+            margin: 0;
+            height: 250px;
+            overflow-y: auto;
+            border-bottom: 1px solid #eee;
+        }
+        .chat-messages li {
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            border-radius: 15px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .chat-messages li.sent {
+            background-color: #007bff;
+            color: white;
+            align-self: flex-end;
+            margin-left: auto; /* Push to the right */
+        }
+        .chat-messages li.received {
+            background-color: #e9ecef;
+            color: #333;
+            align-self: flex-start;
+        }
+        .chat-input-form {
+            display: flex;
+            padding: 10px;
+        }
+        .chat-input-form input {
+            flex-grow: 1;
+            border: 1px solid #ccc;
+            padding: 8px;
+            border-radius: 20px;
+            margin-right: 8px;
+        }
+        .chat-input-form button {
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            line-height: 40px;
+        }
+        .chat-container.minimized .chat-messages,
+.chat-container.minimized .chat-input-form {
+    display: none;
+}
+
+.chat-container.minimized .chat-toggle-btn::before {
+    content: '+'; /* Change button text to a plus sign when minimized */
+}
+.chat-container:not(.minimized) .chat-toggle-btn::before {
+    content: '−'; /* A minus sign when not minimized */
+}
+    </style>
 {% endblock %} {% block content %}
 <h2>Welcome, {{ user.name }}</h2>
 <p>
@@ -60,6 +155,21 @@
     <p>No active ride requests. Click "Find Nearest Driver" to start.</p>
     {% endif %}
 </div>
+<!-- ===== NEW CHAT BOX HTML ===== -->
+    <div id="temporaryChatBox" class="chat-container">
+        <div class="chat-header" onclick="toggleChatWindow()">
+    <span>Chat with Driver</span>
+    <button class="chat-toggle-btn">-</button>
+</div>
+        <ul id="chatMessages" class="chat-messages">
+            <!-- Messages will be added here by JavaScript -->
+        </ul>
+        <form id="chatForm" class="chat-input-form" onsubmit="sendChatMessage(event)">
+            <input type="text" id="chatInput" placeholder="Type a message..." autocomplete="off" required>
+            <button type="submit" class="btn-confirm"><i class="fas fa-paper-plane"></i></button>
+        </form>
+    </div>
+    <!-- ===== END CHAT BOX HTML ===== -->
 
 <script>
     let map; // Declared globally
@@ -71,6 +181,7 @@
     let socket;
     let poiRouteControl = null;
     let serviceMarkersLayer = L.layerGroup();
+    let activeRideForChat = null;
 
     let currentUserLatitude = {{ user.latitude|tojson if user.latitude is not none else 'null' }};
     let currentUserLongitude = {{ user.longitude|tojson if user.longitude is not none else 'null' }};
@@ -239,6 +350,50 @@ const hospitalIcon = new L.Icon({
     });
     console.log("[USER DASH] Finished drawing/updating driver markers."); // Add log
 }
+     function showChatBox(ride_data) {
+        activeRideForChat = ride_data;
+        document.getElementById('temporaryChatBox').style.display = 'flex';
+        document.getElementById('chatMessages').innerHTML = ''; // Clear old messages
+    }
+
+    function hideChatBox() {
+        activeRideForChat = null;
+        document.getElementById('temporaryChatBox').style.display = 'none';
+    }
+
+    function sendChatMessage(event) {
+        event.preventDefault();
+        const input = document.getElementById('chatInput');
+        const message = input.value.trim();
+        if (message && activeRideForChat) {
+            appendChatMessage(message, 'sent');
+            // Make sure the ride_id property name matches what you get from the server
+            // It could be 'id' or 'ride_id'
+            const rideId = activeRideForChat.id || activeRideForChat.ride_id; 
+            socket.emit('send_chat_message', {
+                'message': message,
+                'ride_id': rideId,
+                'role': 'user' // This client's role is 'user'
+            });
+            input.value = '';
+        }
+    }
+
+    function appendChatMessage(message, type) {
+        const messagesList = document.getElementById('chatMessages');
+        const li = document.createElement('li');
+        li.className = type;
+        li.textContent = message;
+        messagesList.appendChild(li);
+        messagesList.scrollTop = messagesList.scrollHeight;
+    }
+    function toggleChatWindow() {
+    const chatBox = document.getElementById('temporaryChatBox');
+    if (chatBox) {
+        chatBox.classList.toggle('minimized');
+    }
+}
+    // ===== END NEW CHAT FUNCTIONS =====
 
     document.addEventListener("DOMContentLoaded", function () 
     {
@@ -343,6 +498,7 @@ const hospitalIcon = new L.Icon({
               if (userLiveMarker) userLiveMarker.setLatLng(userLatLngForRoute);
               drawMainAcceptedRoute(userLatLngForRoute, driverLatLng);
               console.log("[USER DASH] Accepted ride route drawing attempted.");
+              showChatBox({ ride_id: currentRideStatusFromServer.ride_id });
           } else if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted') {
               console.warn("[USER DASH] Accepted ride exists, but required node/lat-lng data for route is incomplete/invalid.", currentRideStatusFromServer);
           }
@@ -425,8 +581,8 @@ socket.on('ride_timeout_no_drivers', function(data) {
             socket.on('ride_accepted', function(data) {
                 console.log('[USER DASH] Received ride_accepted:', data);
                 alert(data.message || `Ride with ${data.driver_name} accepted!`); 
-                
                 location.reload(); 
+                showChatBox(data);
             });
 
             socket.on('ride_rejected', function(data) {
@@ -439,6 +595,14 @@ socket.on('ride_timeout_no_drivers', function(data) {
                 console.log('[USER DASH] Received ride_completed:', data);
                 alert(data.message || `Ride with ${data.driver_name} completed.`);
                 location.reload(); 
+                alert(data.message);
+                hideChatBox(); // <-- HIDE CHAT ON COMPLETION
+                setTimeout(() => location.reload(), 1500);
+            });
+            socket.on('receive_chat_message', function(data) 
+            {
+            console.log("Received chat message:", data);
+            appendChatMessage(data.message, 'received');
             });
 
             socket.on('status_update', function(data) { // For join confirmation

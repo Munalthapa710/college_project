@@ -4,7 +4,103 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
-{% endblock %} {% block content %}
+ <style>
+        /* --- Temporary Chat Box Styles --- */
+        .chat-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 320px;
+            max-width: 90vw;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: none; /* Initially hidden */
+            flex-direction: column;
+            z-index: 1010;
+        }
+        .chat-header {
+            background-color: #343a40; /* Driver navbar color */
+            color: white;
+            padding: 10px 15px;
+            border-top-left-radius: 7px;
+            border-top-right-radius: 7px;
+            font-weight: bold;
+            cursor: pointer; /* Make it look clickable */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+        }
+        .chat-messages {
+            list-style: none;
+            padding: 10px;
+            margin: 0;
+            height: 250px;
+            overflow-y: auto;
+            border-bottom: 1px solid #eee;
+        }
+        .chat-messages li {
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            border-radius: 15px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .chat-messages li.sent {
+            background-color: #007bff;
+            color: white;
+            align-self: flex-end;
+            margin-left: auto; /* Push to the right */
+        }
+        .chat-messages li.received {
+            background-color: #e9ecef;
+            color: #333;
+            align-self: flex-start;
+        }
+        .chat-input-form {
+            display: flex;
+            padding: 10px;
+        }
+        .chat-input-form input {
+            flex-grow: 1;
+            border: 1px solid #ccc;
+            padding: 8px;
+            border-radius: 20px;
+            margin-right: 8px;
+        }
+        .chat-input-form button {
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            line-height: 40px;
+        }
+        .chat-toggle-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5em;
+    font-weight: bold;
+    line-height: 1;
+    padding: 0 5px;
+    cursor: pointer;
+}
+
+/* This class will be toggled by JavaScript */
+.chat-container.minimized .chat-messages,
+.chat-container.minimized .chat-input-form {
+    display: none;
+}
+
+.chat-container.minimized .chat-toggle-btn::before {
+    content: '+'; /* Change button text to a plus sign when minimized */
+}
+.chat-container:not(.minimized) .chat-toggle-btn::before {
+    content: '-'; /* A minus sign when not minimized */
+}
+    </style>
+    {% endblock %} {% block content %}
 <h2>Welcome, {{ driver.name }} (Your Node: {{ driver.node }})</h2>
 
 <div class="map-wrapper-fullwidth">
@@ -23,6 +119,21 @@
         Mark Ride as Completed
     </button>
 </div>
+ <!-- ===== NEW CHAT BOX HTML ===== -->
+    <div id="temporaryChatBox" class="chat-container">
+        <div class="chat-header" onclick="toggleChatWindow()">
+    <span>Chat with User</span>
+    <button class="chat-toggle-btn">-</button>
+</div>
+        <ul id="chatMessages" class="chat-messages">
+            <!-- Messages will be added here by JavaScript -->
+        </ul>
+        <form id="chatForm" class="chat-input-form" onsubmit="sendChatMessage(event)">
+            <input type="text" id="chatInput" placeholder="Type a message..." autocomplete="off" required>
+            <button type="submit" class="btn-confirm"><i class="fas fa-paper-plane"></i></button>
+        </form>
+    </div>
+    <!-- ===== END CHAT BOX HTML ===== -->
 
 <h3>Pending Ride Requests</h3>
 <div id="requests">
@@ -57,13 +168,56 @@
     let routeToAcceptedUserControl = null;
     let pendingUserMapMarkers = {};
     let activeRideDataForCompletion = null;
+    let activeRideForChat = null;
 
     const driverIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
     const acceptedUserIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
     const pendingUserIcon = new L.Icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
 
     function displayErrorOnMapContainer(message) { const mapDiv = document.getElementById('map'); if (mapDiv) { mapDiv.innerHTML = `<p style="padding:30px; text-align:center; color:red; font-weight:bold; font-size:1.1em; background-color: #ffe0e0; border: 1px solid red;">MAP INITIALIZATION ERROR:<br>${message}</p>`; } console.error("MAP ERROR:", message); }
+    function showChatBox(ride_data) {
+        activeRideForChat = ride_data;
+        document.getElementById('temporaryChatBox').style.display = 'flex';
+        document.getElementById('chatMessages').innerHTML = ''; // Clear old messages
+    }
 
+    function hideChatBox() {
+        activeRideForChat = null;
+        document.getElementById('temporaryChatBox').style.display = 'none';
+    }
+
+    function sendChatMessage(event) {
+        event.preventDefault(); // Prevent form from reloading page
+        const input = document.getElementById('chatInput');
+        const message = input.value.trim();
+
+        if (message && activeRideForChat) {
+            appendChatMessage(message, 'sent');
+            socket.emit('send_chat_message', {
+                'message': message,
+                'ride_id': activeRideForChat.id,
+                'role': 'driver'
+            });
+            input.value = '';
+        }
+    }
+
+    function appendChatMessage(message, type) {
+        const messagesList = document.getElementById('chatMessages');
+        const li = document.createElement('li');
+        li.className = type;
+        li.textContent = message;
+        messagesList.appendChild(li);
+        messagesList.scrollTop = messagesList.scrollHeight;
+    }
+
+     function toggleChatWindow() 
+     {
+     const chatBox = document.getElementById('temporaryChatBox');
+     if (chatBox) {
+        chatBox.classList.toggle('minimized');
+     }
+     }
     document.addEventListener("DOMContentLoaded", function ()
      {
       try {
@@ -91,6 +245,7 @@
               );
               activeRideDataForCompletion = activeRideDataFromServerGlobal;
               updateActiveRideDisplay(true);
+              showChatBox(activeRideDataFromServerGlobal);
           } else if (activeRideDataFromServerGlobal) {
               console.warn("Driver dashboard: Active ride data exists, but user lat/lng is missing.");
               updateActiveRideDisplay(false);
@@ -124,6 +279,7 @@
             socket.on('disconnect', (reason) => {
                console.log('[DRIVER DASH] Socket.IO Disconnected:', reason);
             });
+            
 
             // Listen for new ride requests from the server
             socket.on('new_ride_request', function(data) {
@@ -138,12 +294,22 @@
                 location.reload(); 
             });
 
+            // ===== THE NEW LISTENER  =====
+            socket.on('receive_chat_message', function(data) {
+                console.log("Driver received chat message:", data);
+                appendChatMessage(data.message, 'received');
+            });
+            // ===== END OF NEW LISTENER =====
+
             socket.on('status_update', function(data) { // For join confirmation
                  console.log('[DRIVER DASH] Received status_update:', data.msg);
             });
 
         } catch (e) {
             console.error("[DRIVER DASH] Error initializing Socket.IO:", e);
+        }
+        if (activeRideDataFromServerGlobal) {
+            showChatBox(activeRideDataFromServerGlobal);
         }
         // --- END SOCKET.IO Connection ---
     });
@@ -218,6 +384,8 @@
             );
             activeRideDataForCompletion = acceptedReqDetails;
             updateActiveRideDisplay(true);
+            showChatBox(acceptedReqDetails); 
+
           } else {
               console.error("Driver: After accept, user lat/lng is MISSING/INVALID for req ID:", requestId);
               alert("Request accepted, but user location data is missing/invalid. Page will reload.");
@@ -235,6 +403,7 @@
     }
     window.markRideCompleted = function() {
         if (!activeRideDataForCompletion || !activeRideDataForCompletion.id) { alert("No active ride selected."); return; }
+        hideChatBox();
         const rideIdToComplete = activeRideDataForCompletion.id;
         fetch('/complete-ride', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ ride_id: rideIdToComplete }) })
         .then(res => res.json()).then(data => {
