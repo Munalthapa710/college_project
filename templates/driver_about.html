@@ -1,5 +1,38 @@
 {% extends 'driver_base.html' %}
+
 {% block content %}
-<h2>About Us</h2>
-<p>This is the emergency vehicle driver dashboard for helping nearby users in critical situations.</p>
+<div class="about-us-container">
+
+    <header class="about-header">
+        <h1>Our Mission</h1>
+        <p class="mission-statement">
+            To bridge the gap between emergency situations and immediate response by leveraging technology. We aim to reduce critical time delays and save lives by connecting users directly with the nearest available emergency personnel.
+        </p>
+    </header>
+
+    <section class="about-section">
+        <h2>Meet the Developer</h2>
+
+        <div class="developer-profile-card">
+            <!-- Ensure your photo is at this path -->
+            <img src="{{ url_for('static', filename='images/profile.jpg') }}" alt="Photo of Munal Thapa" class="developer-photo">
+            
+            <div class="developer-info">
+                <h3 class="name">Munal Thapa</h3>
+                <span class="role">Lead Developer & System Architect</span>
+                <p class="bio">
+                    Mr Munal is the visionary behind the Emergency Vehicle Tracking System. With a passion for creating impactful technology, he designed and developed this platform from the ground up to provide a reliable and rapid-response solution for communities.
+                </p>
+                
+                <!-- Optional: Add your social media or portfolio links -->
+                <div class="social-links">
+                    <a href="https://www.linkedin.com/in/munalthapa710/" target="_blank" title="LinkedIn"><i class="fab fa-linkedin"></i></a>
+                    <a href="https://github.com/munalthapa710" target="_blank" title="GitHub"><i class="fab fa-github"></i></a>
+                    <a href="https://munalthapa710.com.np" target="_blank" title="Portfolio"><i class="fas fa-globe"></i></a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+</div>
 {% endblock %}

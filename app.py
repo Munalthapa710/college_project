@@ -369,7 +369,7 @@ def login():
                     flash('Your driver account is pending approval from an administrator.', 'warning')
                     return render_template('login.html', form_data=form_data_to_pass)
                 session['driver'] = driver.email
-                flash(f'Welcome back, {driver.name}!', 'success')
+                flash(f'Welcome,', 'success')
                 login_successful = True
                 return redirect(url_for('driver_home'))
             
@@ -377,7 +377,7 @@ def login():
             user = User.query.filter_by(email=email).first() # Query by normalized email
             if user and user.password == password: 
                 session['user'] = user.email
-                flash(f'Welcome back, {user.name}!', 'success')
+                flash(f'Welcome', 'success')
                 login_successful = True
                 return redirect(url_for('user_home'))
         

@@ -1,5 +1,54 @@
 {% extends 'driver_base.html' %}
+
 {% block content %}
-<h2>Driver Home</h2>
-<p>Welcome, {{ driver.name }}!</p>
+<!-- Add a wrapper div with a specific class for the driver home page -->
+<div class="home-container driver-home">
+
+    <!-- newsec Section: The main welcome message -->
+    <section class="newsec-section">
+        <div class="newsec-text">
+            <h1>Ready for Duty, <span class="highlight">{{ driver.name }}</span>!</h1>
+            <p>
+                Your role is vital to our community's safety. Your readiness and quick response save lives. Thank you for your service.
+            </p>
+            <a href="{{ url_for('dashboard') }}" class="cta-button">
+                View Your Dashboard »
+            </a>
+        </div>
+        <div class="newsec-image">
+            <!-- Make sure you have an image at this path -->
+            <img src="{{ url_for('static', filename='images/img1.png') }}" alt="Emergency Vehicle Illustration">
+        </div>
+    </section>
+
+    <!-- Features Section: Reinforces the driver's role -->
+    <section class="features-section">
+        <h2>Your Mission-Critical Tools</h2>
+        <div class="features-grid">
+            
+            <div class="feature-card">
+                
+                <img src="{{ url_for('static', filename='images/lrb.jpg') }}" alt="Live Requests Icon">
+                <h3>Live Request Board</h3>
+                <p>Your dashboard provides instant alerts for new ride requests in your operational area. Accept and get moving instantly.</p>
+            </div>
+            
+            <div class="feature-card">
+                
+                <img src="{{ url_for('static', filename='images/m2.png') }}" alt="Efficient Routing Icon">
+                <h3>Efficient Routing</h3>
+                <p>Once you accept a request, the system provides a clear route to the user's location, helping you navigate quickly and safely.</p>
+            </div>
+
+            <div class="feature-card">
+                
+                <img src="{{ url_for('static', filename='images/23.png') }}" alt="Community Impact Icon">
+                <h3>Community Impact</h3>
+                <p>Every call you answer makes a difference. Your history tab tracks your completed responses and contributions.</p>
+            </div>
+
+        </div>
+    </section>
+
+</div>
 {% endblock %}

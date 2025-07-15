@@ -1,4 +1,51 @@
 {% extends 'user_base.html' %}
+
 {% block content %}
-<p>Welcome, {{ user.name }}!</p>
+<div class="home-container">
+
+    <section class="newsec-section">
+        <div class="newsec-text">
+            <h1>Welcome, <span class="highlight">{{ user.name }}</span>!</h1>
+            <p>
+                You are connected to the Emergency Vehicle Tracking System. In a critical situation, find the nearest help quickly and efficiently.
+            </p>
+            <a href="{{ url_for('user_dashboard') }}" class="cta-button">
+                Go to Dashboard »
+            </a>
+        </div>
+        <div class="newsec-image">
+  
+            <img src="{{ url_for('static', filename='images/img1.png') }}" alt="Emergency Response System Illustration">
+        </div>
+    </section>
+
+    <section class="features-section">
+        <h2>How Our System Protects You</h2>
+        <div class="features-grid">
+            
+            <div class="feature-card">
+               
+                <img src="{{ url_for('static', filename='images/realtimemap.avif') }}" alt="Real-time Map Icon">
+                <h3>Real-Time Tracking</h3>
+                <p>See all available emergency vehicles on a live map. Know where help is and how far away it is.</p>
+            </div>
+            
+            <div class="feature-card">
+              
+                <img src="{{ url_for('static', filename='images/fr.jpg') }}" alt="Fast Response Icon">
+                <h3>Instant Dispatch</h3>
+                <p>Your request is sent directly to the nearest available driver, minimizing response time when every second counts.</p>
+            </div>
+
+            <div class="feature-card">
+                
+                <img src="{{ url_for('static', filename='images/comm.png') }}" alt="Communication Icon">
+                <h3>Direct Communication</h3>
+                <p>Once a driver accepts your request, you can communicate directly with them through a secure, temporary chat.</p>
+            </div>
+
+        </div>
+    </section>
+
+</div>
 {% endblock %}

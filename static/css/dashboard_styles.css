@@ -374,3 +374,263 @@ nav.navbar .navbar-profile .profile-image-clickable i.far::before {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+.home-container {
+    max-width: 1100px;
+    margin: 20px auto;
+    padding: 20px;
+}
+
+/* newsec Section */
+.newsec-section {
+    display: flex;
+    align-items: center;
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 40px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.05);
+    margin-bottom: 40px;
+    gap: 40px;
+}
+
+.newsec-text {
+    flex: 1;
+}
+
+.newsec-text h1 {
+    font-size: 2.8em;
+    font-weight: 700;
+    color: #333;
+    line-height: 1.2;
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+.newsec-text .highlight {
+    color: #007bff; /* Matches user navbar color */
+}
+
+.newsec-text p {
+    font-size: 1.1em;
+    color: #555;
+    margin-bottom: 30px;
+}
+
+.newsec-image {
+    flex: 1;
+    text-align: center;
+}
+
+.newsec-image img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+}
+
+/* Call-to-Action Buttons */
+.cta-button {
+    background-color: #007bff;
+    color: white;
+    padding: 15px 30px;
+    text-decoration: none;
+    font-size: 1.1em;
+    font-weight: bold;
+    border-radius: 8px;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    display: inline-block;
+}
+
+.cta-button:hover {
+    background-color: #0056b3;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.2);
+}
+
+/* Features Section */
+.features-section {
+    text-align: center;
+    padding: 40px 0;
+}
+
+.features-section h2 {
+    font-size: 2.2em;
+    margin-bottom: 40px;
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 30px;
+}
+
+.feature-card {
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.04);
+    text-align: center;
+}
+
+.feature-card img {
+    height: 60px;
+    margin-bottom: 20px;
+}
+
+.feature-card h3 {
+    font-size: 1.4em;
+    margin-bottom: 10px;
+    color: #333;
+}
+
+.feature-card p {
+    color: #666;
+    font-size: 1em;
+    line-height: 1.6;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .newsec-section {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .newsec-text h1 {
+        font-size: 2.2em;
+    }
+}
+/* static/css/dashboard_styles.css */
+
+/* --- STYLES FOR THE "ABOUT US" PAGE --- */
+
+.about-us-container {
+    max-width: 900px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.05);
+}
+
+.about-header {
+    text-align: center;
+    padding-bottom: 30px;
+    margin-bottom: 30px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.about-header h1 {
+    font-size: 2.5em;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.about-header .mission-statement {
+    font-size: 1.2em;
+    color: #555;
+    max-width: 700px;
+    margin: 0 auto;
+    line-height: 1.6;
+}
+
+.about-section {
+    margin-bottom: 40px;
+}
+
+.about-section h2 {
+    font-size: 2em;
+    color: #007bff; /* User theme color */
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+/* Developer Profile Card */
+.developer-profile-card {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    padding: 30px;
+    background-color: #f8f9fa;
+    border-radius: 12px;
+}
+
+.developer-photo {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%; /* Makes the image circular */
+    object-fit: cover; /* Prevents the image from stretching */
+    border: 5px solid #ffffff;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.developer-info {
+    flex: 1;
+}
+
+.developer-info .name {
+    font-size: 1.8em;
+    font-weight: bold;
+    color: #333;
+    margin: 0 0 5px 0;
+}
+
+.developer-info .role {
+    font-size: 1.1em;
+    font-weight: 500;
+    color: #6c757d;
+    margin: 0 0 15px 0;
+    display: block;
+}
+
+.developer-info .bio {
+    font-size: 1em;
+    color: #555;
+    line-height: 1.7;
+}
+
+.social-links {
+    margin-top: 15px;
+}
+
+.social-links a {
+    color: #007bff;
+    font-size: 1.8em;
+    text-decoration: none;
+    margin-right: 15px;
+    transition: color 0.3s ease;
+}
+
+.social-links a:hover {
+    color: #0056b3;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .developer-profile-card {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .developer-photo {
+        width: 120px;
+        height: 120px;
+        margin-bottom: 15px;
+    }
+}
+
+.driver-home .highlight {
+    color: #ffc107; /* A nice, contrasting gold/yellow color for the driver theme */
+}
+
+.driver-home .cta-button {
+    background-color: #343a40; /* Driver navbar color */
+}
+
+.driver-home .cta-button:hover {
+    background-color: #23272b; /* A darker shade */
+    box-shadow: 0 4px 10px rgba(52, 58, 64, 0.2);
+}
+
+.driver-home .features-section h2 {
+    color: #343a40; /* Driver theme color */
+}
