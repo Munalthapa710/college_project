@@ -505,13 +505,15 @@ window.routeToService = function(markerId) {
               mapInitialView = fallbackLatLng;
           }
 
-          map = L.map('map').setView(mapInitialView, 13);
+           map = L.map('map').setView(mapInitialView, 14);
           console.log("[USER DASH] Leaflet map object IS CREATED:", map);
 
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OSM' })
               .on('tileerror', function(e){ console.error("[USER DASH] TileLayer Error:", e); displayErrorOnMapContainer("Map tiles failed to load. Check internet connection or tile server configuration."); })
               .addTo(map);
           console.log("[USER DASH] TileLayer added to map.");
+           
+          
 
           if (!(userMarkerInitialLatLng instanceof L.LatLng) || isNaN(userMarkerInitialLatLng.lat) || isNaN(userMarkerInitialLatLng.lng)) {
               console.warn("[USER DASH] userMarkerInitialLatLng invalid, using fallback for user marker.", userMarkerInitialLatLng);
