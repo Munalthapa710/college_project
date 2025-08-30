@@ -180,6 +180,7 @@
     let currentNearestDriverForConfirmation = null;
     let socket;
     let poiRouteControl = null;
+    let activePoiMarker = null;
     let serviceMarkersLayer = L.layerGroup();
     let activeRideForChat = null;
 
@@ -226,74 +227,114 @@ const hospitalIcon = new L.Icon({
 
     const allServicesData = JSON.parse('{{ services | tojson | safe }}');
 
-    function drawServiceMarkers() 
-    {
-        if (!allServicesData) return;
+    function drawServiceMarkers() {
+    if (!allServicesData || !map) return;
+    serviceMarkersLayer.clearLayers();
 
-        const iconMap = {
-            "hospitals": hospitalIcon,
-            "police_stations": policeIcon,
-            "charging_stations": chargingStationIcon,
-            "petrol_stations": petrolStationIcon
-        };
-         for (const category in allServicesData) {
-            const icon = iconMap[category] || L.Icon.Default(); // Fallback to default icon
-            const services = allServicesData[category];
+    const iconMap = {
+        "hospitals": hospitalIcon,
+        "police_stations": policeIcon,
+        "charging_stations": chargingStationIcon,
+        "petrol_stations": petrolStationIcon
+    };
 
-            services.forEach(service => {
-                const serviceLatLng = L.latLng(service.lat, service.lng);
-                
-                // Create the content for the popup, including the "Route" button
-                const popupContent = `
-                    <b>${service.name}</b><br>
-                    <button class="button-style btn-secondary" style="padding: 5px 10px; margin-top: 5px;" 
-                            onclick="routeToService(${service.lat}, ${service.lng})">
-                        Route to here
-                    </button>
-                `;
+    for (const category in allServicesData) {
+        const icon = iconMap[category] || L.Icon.Default();
+        const services = allServicesData[category];
 
-                const marker = L.marker(serviceLatLng, { icon: icon })
-                    .bindPopup(popupContent);
-                
-                serviceMarkersLayer.addLayer(marker);
-            });
-        }
-        // Add the entire layer group to the map
-        serviceMarkersLayer.addTo(map);
+        services.forEach(service => {
+            const serviceLatLng = L.latLng(service.lat, service.lng);
+            // Give the marker a unique ID based on its properties for easy finding later
+            const markerId = `${category}-${service.name.replace(/\s+/g, '-')}`;
+            
+            const marker = L.marker(serviceLatLng, { icon: icon, markerId: markerId });
+            
+            // Store data on the marker itself
+            marker.serviceData = service; 
+            
+            const initialPopupContent = `
+                <b>${service.name}</b><br>
+                <button class="button-style btn-secondary" style="padding: 5px 10px; margin-top: 5px;" 
+                        onclick="routeToService('${markerId}')">
+                    Route to here
+                </button>
+            `;
+            
+            marker.bindPopup(initialPopupContent).addTo(serviceMarkersLayer);
+        });
     }
-     window.routeToService = function(lat, lng) {
-        if (!userLiveMarker) {
-            alert("Please set your location on the map first.");
-            return;
-        }
-        
-        // Remove any previous POI route from the map
-        if (poiRouteControl) {
-            map.removeControl(poiRouteControl);
-        }
+    serviceMarkersLayer.addTo(map);
+}
 
-        const userLatLng = userLiveMarker.getLatLng();
-        const serviceLatLng = L.latLng(lat, lng);
-
-        poiRouteControl = L.Routing.control({
-            waypoints: [userLatLng, serviceLatLng],
-            routeWhileDragging: false,
-            show: true,
-            addWaypoints: false,
-            lineOptions: { styles: [{color: 'purple', opacity: 0.8, weight: 6}] },
-            // We can show the default markers for start/end of this specific route
-            createMarker: function(i, waypoint, n) {
-                const marker = L.marker(waypoint.latLng, {
-                    draggable: false,
-                    icon: (i === 0) ? userIcon : L.Icon.Default() // Use user icon for start
-                });
-                return marker;
-            }
-        }).addTo(map);
-
-        // Close the popup after clicking the button
-        map.closePopup();
+window.cancelPoiRoute = function() {
+    if (poiRouteControl) {
+        map.removeControl(poiRouteControl);
+        poiRouteControl = null;
     }
+
+    if (activePoiMarker) {
+        const service = activePoiMarker.serviceData;
+        const initialPopupContent = `
+            <b>${service.name}</b><br>
+            <button class="button-style btn-secondary" style="padding: 5px 10px; margin-top: 5px;" 
+                    onclick="routeToService('${activePoiMarker.options.markerId}')">
+                Route to here
+            </button>
+        `;
+        activePoiMarker.setPopupContent(initialPopupContent);
+        activePoiMarker = null;
+    }
+    map.closePopup(); 
+}
+
+window.routeToService = function(markerId) {
+    if (activePoiMarker) {
+        // This is a safety check. If a route is active, cancel it first.
+        // It's better to find the old marker and update its popup too, but for now this is robust.
+        cancelPoiRoute();
+    }
+    
+    // Find the marker by its unique ID
+    let marker = null;
+    serviceMarkersLayer.eachLayer(layer => {
+        if (layer.options.markerId === markerId) {
+            marker = layer;
+        }
+    });
+
+    if (!marker) {
+        console.error("Could not find marker with ID:", markerId);
+        return;
+    }
+
+    if (!userLiveMarker) {
+        alert("Please set your location on the map first.");
+        return;
+    }
+    
+    activePoiMarker = marker; // Set the found marker as active
+    const service = marker.serviceData;
+    const userLatLng = userLiveMarker.getLatLng();
+    const serviceLatLng = L.latLng(service.lat, service.lng);
+
+    poiRouteControl = L.Routing.control({
+        waypoints: [userLatLng, serviceLatLng],
+        routeWhileDragging: false,
+        show: true, addWaypoints: false,
+        lineOptions: { styles: [{color: 'purple', opacity: 0.8, weight: 6}] },
+        createMarker: function() { return null; }
+    }).addTo(map);
+
+    const activePopupContent = `
+        <b>${service.name}</b>
+        <p style="color: green; font-weight: bold; margin: 8px 0 5px 0;">Route is active.</p>
+        <button class="button-style btn-cancel" style="padding: 5px 10px;" 
+                onclick="cancelPoiRoute()">
+            Cancel Route
+        </button>
+    `;
+    marker.setPopupContent(activePopupContent).openPopup();
+}
     function displayErrorOnMapContainer(message, errorObj) { const mapLoadingText = document.getElementById('mapLoadingText'); const mapDiv = document.getElementById('map'); if (mapLoadingText) mapLoadingText.style.display = 'none'; let detailedError = message; if (errorObj && errorObj.stack) { detailedError += "<br><pre style='font-size:0.8em; text-align:left; white-space:pre-wrap;word-break:break-all;'>" + errorObj.stack.substring(0,500) + "...</pre>"; } else if (errorObj) { detailedError += "<br><pre style='font-size:0.8em; text-align:left; white-space:pre-wrap;word-break:break-all;'>" + JSON.stringify(errorObj, null, 2) + "</pre>"; } if (mapDiv) { mapDiv.innerHTML = `<p style="padding:20px; text-align:center; color:red; font-weight:bold; font-size:1.1em; background-color: #ffe0e0; border: 1px solid red;">MAP INIT ERROR:<br>${detailedError}</p>`;} console.error("MAP ERROR:", message, errorObj); }
     function findClosestNodeKeyToLatLng(latlng, availableNodeCoords, routableGraph) { let closestKey = null; let minDist = Infinity; if (!availableNodeCoords || typeof availableNodeCoords !== 'object' || Object.keys(availableNodeCoords).length === 0) { console.warn("[findClosestNodeKeyToLatLng] availableNodeCoords data missing."); return null;} if (!routableGraph || typeof routableGraph !== 'object' || Object.keys(routableGraph).length === 0) { console.warn("[findClosestNodeKeyToLatLng] routableGraph data missing.");} for (const nodeKey in availableNodeCoords) { if (availableNodeCoords.hasOwnProperty(nodeKey)) { if (routableGraph && !routableGraph.hasOwnProperty(nodeKey)) continue; const nodeCoordArray = availableNodeCoords[nodeKey]; if(Array.isArray(nodeCoordArray) && nodeCoordArray.length === 2 && typeof nodeCoordArray[0] === 'number' && typeof nodeCoordArray[1] === 'number') { const nodeLatLng = L.latLng(nodeCoordArray[0], nodeCoordArray[1]); const dist = latlng.distanceTo(nodeLatLng); if (dist < minDist) { minDist = dist; closestKey = nodeKey; }} }} console.log("[findClosestNodeKeyToLatLng] Determined closest routable node:", closestKey); return closestKey; }
     function updateUserPreciseLocationAndSave(latlng) { const locMsgEl = document.getElementById('locationSetMessage'); const preciseLocDisplayEl = document.getElementById('currentUserPreciseLocation'); const subDisplayEl = document.getElementById('userClosestNodeSubDisplay'); const findBtn = document.getElementById('findNearestBtn'); locMsgEl.textContent = ""; if(preciseLocDisplayEl) preciseLocDisplayEl.textContent = `(${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)})`; if (userLiveMarker) { userLiveMarker.setLatLng(latlng).bindPopup(`Your Location: (${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)})`).openPopup(); } userClosestNodeKeyForDijkstra = findClosestNodeKeyToLatLng(latlng, coordsDataForDrivers, graphDataForDijkstra); if(subDisplayEl) subDisplayEl.style.display = 'none'; if (userClosestNodeKeyForDijkstra) { if(findBtn) { findBtn.disabled = false; findBtn.title = "Find Nearest Driver (Network Path)"; }} else { if(findBtn) { findBtn.disabled = true; findBtn.title = "Set location closer to a routable service point.";}} const latChanged = currentUserLatitude === null || Math.abs(currentUserLatitude - latlng.lat) > 1e-7; const lngChanged = currentUserLongitude === null || Math.abs(currentUserLongitude - latlng.lng) > 1e-7; if (latChanged || lngChanged) { fetch('/set-user-current-location', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({latitude:latlng.lat, longitude:latlng.lng})}).then(r=>r.json()).then(d=>{if(d.success){currentUserLatitude=d.latitude;currentUserLongitude=d.longitude;locMsgEl.textContent="Location Saved!";}else{locMsgEl.textContent="Could not save: "+(d.error||"");}setTimeout(()=>locMsgEl.textContent="",3000);}).catch(e=>{locMsgEl.textContent="Network Save Err.";setTimeout(()=>locMsgEl.textContent="",3000);});}else{locMsgEl.textContent="Location Confirmed.";setTimeout(()=>locMsgEl.textContent="",3000);} }
