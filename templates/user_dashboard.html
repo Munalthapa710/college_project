@@ -538,7 +538,8 @@ window.routeToService = function(markerId) {
           if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' &&
               currentRideStatusFromServer.driver_node && coordsDataForDrivers[currentRideStatusFromServer.driver_node] &&
               currentRideStatusFromServer.user_latitude_for_route !== null &&
-              currentRideStatusFromServer.user_longitude_for_route !== null) {
+              currentRideStatusFromServer.user_longitude_for_route !== null) 
+              {
               console.log("[USER DASH] Accepted ride detected. Attempting to draw route to driver.");
               const driverNodeCoords = coordsDataForDrivers[currentRideStatusFromServer.driver_node];
               const driverLatLng = L.latLng(driverNodeCoords[0], driverNodeCoords[1]);
