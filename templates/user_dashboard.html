@@ -93,10 +93,14 @@
 }
 
 .chat-container.minimized .chat-toggle-btn::before {
-    content: '+'; /* Change button text to a plus sign when minimized */
+     content: '○'; /* An open circle for "open me" */
+    font-size: 1.2em; 
+    line-height: 1;
 }
 .chat-container:not(.minimized) .chat-toggle-btn::before {
-    content: '−'; /* A minus sign when not minimized */
+    content: '−'; /* A proper minus sign for "minimize me" */
+    font-size: 1.5em; 
+    line-height: 1;
 }
     </style>
 {% endblock %} {% block content %}
@@ -159,7 +163,7 @@
     <div id="temporaryChatBox" class="chat-container">
         <div class="chat-header" onclick="toggleChatWindow()">
     <span>Chat with Driver</span>
-    <button class="chat-toggle-btn">-</button>
+    <button class="chat-toggle-btn"></button>
 </div>
         <ul id="chatMessages" class="chat-messages">
             <!-- Messages will be added here by JavaScript -->

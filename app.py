@@ -227,7 +227,7 @@ def check_and_reroute_ride(ride_id, user_email):
         db.session.commit() # Commit changes (timed_out status and new ride)
 
         # 5. Schedule a check for this NEW ride request
-        run_time = datetime.now(timezone.utc) + timedelta(minutes=2)
+        run_time = datetime.now(timezone.utc) + timedelta(seconds=56)
         scheduler.add_job(check_and_reroute_ride, 'date', run_date=run_time, args=[new_ride.id, user_email])
         print(f"[JOB] Scheduled next check for new ride {new_ride.id} at {run_time.isoformat()}")
 
@@ -511,8 +511,8 @@ def request_ride():
     try:
         db.session.commit()
                 # --- SCHEDULE THE TIMEOUT CHECK ---
-        # Run the job 2 minutes from now
-        run_time = datetime.now(timezone.utc) + timedelta(minutes=2)
+        # Run the job 2 seconds from now
+        run_time = datetime.now(timezone.utc) + timedelta(seconds=2)
         scheduler.add_job(
             check_and_reroute_ride, 
             'date', 
