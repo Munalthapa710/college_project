@@ -227,7 +227,7 @@ def check_and_reroute_ride(ride_id, user_email):
         db.session.commit() # Commit changes (timed_out status and new ride)
 
         # 5. Schedule a check for this NEW ride request
-        run_time = datetime.now(timezone.utc) + timedelta(seconds=56)
+        run_time = datetime.now(timezone.utc) + timedelta(minutes=1)
         scheduler.add_job(check_and_reroute_ride, 'date', run_date=run_time, args=[new_ride.id, user_email])
         print(f"[JOB] Scheduled next check for new ride {new_ride.id} at {run_time.isoformat()}")
 
@@ -424,11 +424,20 @@ def find_nearest_driver_dijkstra():
     
     user_closest_node = data.get('user_closest_node')
     selected_vehicle_type = data.get('vehicle_type', "").strip().lower() # Get selected vehicle type, lowercase for case-insensitive compare
+    
+    drivers_to_exclude = data.get('exclude_drivers', [])
 
     if not user_closest_node or user_closest_node not in graph or user_closest_node not in coordinates:
         return jsonify({'error': 'Invalid or missing user_closest_node for Dijkstra.', 'success': False}), 400
     
-    driver_query = Driver.query.filter(Driver.node.isnot(None), Driver.node.in_(graph.keys()))
+    driver_query = Driver.query.filter(
+        Driver.node.isnot(None), 
+        Driver.node.in_(graph.keys()),
+        Driver.is_approved == True
+    )
+    if drivers_to_exclude:
+        print(f"Executing search, excluding driver: {drivers_to_exclude}")
+        driver_query = driver_query.filter(Driver.email.notin_(drivers_to_exclude))
 
     # Further filter by vehicle type if one is selected
     if selected_vehicle_type:
@@ -511,8 +520,8 @@ def request_ride():
     try:
         db.session.commit()
                 # --- SCHEDULE THE TIMEOUT CHECK ---
-        # Run the job 2 seconds from now
-        run_time = datetime.now(timezone.utc) + timedelta(seconds=2)
+        # Run the job 2 minutes from now
+        run_time = datetime.now(timezone.utc) + timedelta(minutes=2)
         scheduler.add_job(
             check_and_reroute_ride, 
             'date', 
@@ -605,10 +614,11 @@ def reject_request():
         user_to_notify_email = req.user_email
         driver_rejecting = Driver.query.get(session['driver'])
         rejection_data = {
-            'ride_id': req.id,
+           'ride_id': req.id,
             'driver_name': driver_rejecting.name if driver_rejecting else "A driver",
-            'message': f"Your ride request (ID: {req.id}) was rejected by {driver_rejecting.name if driver_rejecting else 'a driver'}."
-        }
+            'driver_email': driver_rejecting.email, # <-- ADD THIS LINE
+            'message': f"Your ride request was rejected by {driver_rejecting.name if driver_rejecting else 'a driver'}. Please find another."
+          }
         socketio.emit('ride_rejected', rejection_data, room=user_to_notify_email)
         print(f"DEBUG: Emitted 'ride_rejected' to user room: {user_to_notify_email} for ride {req.id}")
         # --- END SOCKET.IO EMIT ---

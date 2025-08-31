@@ -137,7 +137,7 @@
 </div>
 
 <div style="text-align: center; margin-bottom: 20px;">
-    <button id="findNearestBtn" onclick="findNearestAndShowPreview()" {% if user.latitude is none or user.longitude is none %} disabled title="Click map to set your location first." {% endif %}>
+    <button id="findNearestBtn" onclick="findNearestAndShowPreview(true)" {% if user.latitude is none or user.longitude is none %} disabled title="Click map to set your location first." {% endif %}>
         Find Nearest Driver (Network Path)
     </button>
     <div id="nearestDriverInfo" class="info-box" style="display: none; max-width: 500px; margin-left: auto; margin-right: auto;"></div>
@@ -152,7 +152,7 @@
         {% endif %}
     </p>
     {% if current_ride_status.type == 'rejected' or current_ride_status.type == 'superseded' %}
-    <button onclick="findNearestAndShowPreview()" class="btn-secondary" style="margin-top: 10px;" {% if user.latitude is none or user.longitude is none %}disabled title="Set your location on map first" {% endif %}>
+    <button onclick="findNearestAndShowPreview(false)" class="btn-secondary" style="margin-top: 10px;" {% if user.latitude is none or user.longitude is none %}disabled title="Set your location on map first" {% endif %}>
         Find Another Driver
     </button>
     {% endif %} {% else %}
@@ -187,6 +187,7 @@
     let activePoiMarker = null;
     let serviceMarkersLayer = L.layerGroup();
     let activeRideForChat = null;
+    let excludedDriverEmails = []; 
 
     let currentUserLatitude = {{ user.latitude|tojson if user.latitude is not none else 'null' }};
     let currentUserLongitude = {{ user.longitude|tojson if user.longitude is not none else 'null' }};
@@ -609,7 +610,7 @@ socket.on('ride_timeout_no_drivers', function(data) {
             <p class="status-rejected">
                 ${data.message}
             </p>
-            <button onclick="findNearestAndShowPreview()" class="btn-secondary" style="margin-top: 10px;">
+            <button onclick="findNearestAndShowPreview(true)" class="btn-secondary" style="margin-top: 10px;">
                 Try Finding a Driver Again
             </button>`;
     }
@@ -626,27 +627,83 @@ socket.on('ride_timeout_no_drivers', function(data) {
 
             // Listen for ride status updates from the server
             socket.on('ride_accepted', function(data) {
-                console.log('[USER DASH] Received ride_accepted:', data);
-                alert(data.message || `Ride with ${data.driver_name} accepted!`); 
-                location.reload(); 
-                showChatBox(data);
-            });
+    console.log('[USER DASH] Ride accepted, updating UI dynamically:', data);
+    excludedDriverEmails = []; // Reset the exclusion list on a successful ride
+    alert(data.message);
+
+    // Step 1: Update the status panel to show a success message
+    const notificationsDiv = document.getElementById('notifications');
+    if (notificationsDiv) {
+        notificationsDiv.innerHTML = `<h4>Current Ride Status:</h4><p class="status-accepted">${data.message}</p>`;
+    }
+    
+    // Step 2: Hide the driver search UI and disable the main find button
+    document.getElementById("nearestDriverInfo").style.display = 'none';
+    document.getElementById('findNearestBtn').disabled = true;
+
+    // Step 3: Draw the route, update the driver icon, and show the chat box
+    if (data.driver_node && coordsDataForDrivers[data.driver_node] && data.user_latitude_for_route != null) {
+        const driverLatLng = L.latLng(coordsDataForDrivers[data.driver_node][0], coordsDataForDrivers[data.driver_node][1]);
+        const userLatLng = L.latLng(data.user_latitude_for_route, data.user_longitude_for_route);
+
+        if (userLiveMarker) {
+            userLiveMarker.setLatLng(userLatLng);
+        }
+        drawMainAcceptedRoute(userLatLng, driverLatLng);
+        
+        // Update the global state so `drawOrUpdateAllDriverMarkers` knows which driver is en-route
+        currentRideStatusFromServer = { type: 'accepted', driver_name: data.driver_name, ride_id: data.ride_id };
+        drawOrUpdateAllDriverMarkers(); // This will change the driver's icon to the blue "en-route" one
+        
+        showChatBox(data); // Show the chat
+    }
+});
 
             socket.on('ride_rejected', function(data) {
-                console.log('[USER DASH] Received ride_rejected:', data);
-                alert(data.message || `Ride rejected by ${data.driver_name}.`);
-                location.reload(); 
-            });
+    console.log('[USER DASH] Ride rejected, updating UI dynamically:', data);
+    alert(data.message);
 
+    
+    if (data.driver_email && !excludedDriverEmails.includes(data.driver_email)) {
+        excludedDriverEmails.push(data.driver_email);
+        console.log("Updated exclusion list:", excludedDriverEmails);
+    }
+
+    
+    const notificationsDiv = document.getElementById('notifications');
+    if (notificationsDiv) {
+        notificationsDiv.innerHTML = `
+            <h4>Current Ride Status:</h4>
+            <p class="status-rejected">${data.message}</p>
+            <button onclick="findNearestAndShowPreview(false)" class="btn-secondary" style="margin-top: 10px;">Find Another Driver</button>
+        `;
+    }
+    
+    
+    document.getElementById('findNearestBtn').disabled = false;
+    
+    
+    cancelDriverSelectionAndClearPreview();
+});
             socket.on('ride_completed', function(data) {
-                console.log('[USER DASH] Received ride_completed:', data);
-                alert(data.message || `Ride with ${data.driver_name} completed.`);
-                location.reload(); 
-                alert(data.message);
-                hideChatBox(); // <-- HIDE CHAT ON COMPLETION
-                setTimeout(() => location.reload(), 1500);
-            });
-            socket.on('receive_chat_message', function(data) 
+    console.log('[USER DASH] Ride completed, resetting UI.');
+
+    excludedDriverEmails = []; // Reset the exclusion list
+    alert(data.message);
+    hideChatBox();
+
+    // Reset the UI elements to their initial state
+    const notificationsDiv = document.getElementById('notifications');
+    notificationsDiv.innerHTML = '<h4>Current Ride Status:</h4><p>Your previous ride was completed. Click "Find Nearest Driver" to start a new request.</p>';
+    document.getElementById('findNearestBtn').disabled = false;
+    
+    // Clear map elements
+    clearMainAcceptedRoute();
+    currentRideStatusFromServer = null;
+    drawOrUpdateAllDriverMarkers(); // This will reset all driver icons to red
+});
+                 
+socket.on('receive_chat_message', function(data) 
             {
             console.log("Received chat message:", data);
             appendChatMessage(data.message, 'received');
@@ -669,8 +726,168 @@ socket.on('ride_timeout_no_drivers', function(data) {
     function drawMainAcceptedRoute(usrLtLng, drvLtLng) { clearMainAcceptedRoute(); console.log("[UserDash] Drawing MAIN accepted route between User:", usrLtLng.toString(), "and Driver:", drvLtLng.toString()); mainAcceptedRouteControl = L.Routing.control({ waypoints: [usrLtLng, drvLtLng], routeWhileDragging: false, show: false, addWaypoints: false, lineOptions: { styles: [{color: 'blue', opacity: 0.9, weight: 6}] }, createMarker: ()=>null }).addTo(map); map.fitBounds(L.latLngBounds([usrLtLng, drvLtLng]), {padding: [50,50]}); }
 
     
-    window.findNearestAndShowPreview = function () { if(currentUserLatitude===null||currentUserLongitude===null){alert("Please set your location on the map first.");return;} if(graphDataForDijkstra && Object.keys(graphDataForDijkstra).length > 0 && !userClosestNodeKeyForDijkstra){ alert("Cannot determine nearest service point for network routing. Try clicking the map again."); const findBtnEarly = document.getElementById('findNearestBtn'); if (findBtnEarly) findBtnEarly.disabled = false; return; } const findBtn=document.getElementById('findNearestBtn'); findBtn.disabled=true; clearPreviewDijkstraPath(); const infoDiv=document.getElementById("nearestDriverInfo"); infoDiv.innerHTML=`<div class="spinner-loader" style="display: block; margin-bottom: 5px;"></div><p>Finding nearest driver...</p>`; infoDiv.style.display='block'; currentNearestDriverForConfirmation=null; const selectedVehicleType = document.getElementById('vehicleTypeSelect').value; fetch('/find-nearest-driver-dijkstra',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_closest_node: userClosestNodeKeyForDijkstra, vehicle_type: selectedVehicleType})}) .then(r=>{ if(!r.ok) return r.text().then(text => {throw new Error("Server error: "+r.status + " "+ text.substring(0,100))}); return r.json();}) .then(d=>{ if(d.success&&d.nearest_driver){ currentNearestDriverForConfirmation=d.nearest_driver;drawOrUpdateAllDriverMarkers(); let vL=selectedVehicleType?selectedVehicleType:'Vehicle';if(selectedVehicleType&&d.nearest_driver.vehicle&&!d.nearest_driver.vehicle.toLowerCase().includes(selectedVehicleType.toLowerCase()))vL=d.nearest_driver.vehicle||'Vehicle';infoDiv.innerHTML=`<p><strong>Nearest ${vL}:</strong> ${d.nearest_driver.name} (Node ${d.nearest_driver.node})<br>Vehicle: ${d.nearest_driver.vehicle||'N/A'}<br>Path Dist: ${d.nearest_driver.graph_distance} units</p><button class="btn-confirm" onclick="confirmRequestAndClearPreview()">Confirm</button> <button class="btn-cancel" onclick="cancelDriverSelectionAndClearPreview()">Cancel</button>`;}else{infoDiv.innerHTML=`<p>${d.message||`No reachable ${selectedVehicleType||'drivers'} found.`}</p>`;drawOrUpdateAllDriverMarkers();} }).catch(e=>{console.error("Dijkstra fetch err:",e);infoDiv.innerHTML=`<p style="color:red;">Error: ${e.message}</p>`;drawOrUpdateAllDriverMarkers();}).finally(() => { if(findBtn) findBtn.disabled = false; }); };
-    window.confirmRequestAndClearPreview = function() { if(!currentNearestDriverForConfirmation||currentUserLatitude===null){alert("Driver selection or your location is not properly set.");cancelDriverSelectionAndClearPreview();return;} const infoDiv=document.getElementById("nearestDriverInfo");infoDiv.innerHTML=`<p>Sending request to ${currentNearestDriverForConfirmation.name}...</p>`;const pDE=currentNearestDriverForConfirmation.email;clearPreviewDijkstraPath();currentNearestDriverForConfirmation=null;drawOrUpdateAllDriverMarkers();clearMainAcceptedRoute();fetch('/request-ride',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({driver_email:pDE})}).then(r=>{if(!r.ok)return r.text().then(t=>{throw new Error("Server error: "+r.status+" "+t.substring(0,100))});return r.json();}).then(d=>{if(!d.success)throw new Error(d.message||"Request failed.");infoDiv.innerHTML=`<p style="color:green;">${d.message} Refreshing...</p>`;setTimeout(()=>location.reload(),1500);}).catch(e=>{console.error('Ride req err:',e);infoDiv.innerHTML=`<p style="color:red;">Error: ${e.message}</p><button onclick="findNearestAndShowPreview()">Try Again</button>`;document.getElementById('findNearestBtn').disabled=false;});};
-    window.cancelDriverSelectionAndClearPreview = function() { clearPreviewDijkstraPath();currentNearestDriverForConfirmation=null;drawOrUpdateAllDriverMarkers();document.getElementById("nearestDriverInfo").style.display='none';const findBtn=document.getElementById('findNearestBtn');if(findBtn)findBtn.disabled=!(currentUserLatitude!==null&&tUserLongitude!==null&&(userClosestNodeKeyForDijkstra||!graphDataForDijkstra||Object.keys(graphDataForDijkstra).length===0));};
+ window.findNearestAndShowPreview = function (isNewSearch) {
+     if (isNewSearch) {
+        console.log("Starting a new search, clearing exclusion list.");
+        excludedDriverEmails = [];
+    }
+    if (currentUserLatitude === null || currentUserLongitude === null) {
+        alert("Please set your location on the map first.");
+        return;
+    }
+    if (graphDataForDijkstra && Object.keys(graphDataForDijkstra).length > 0 && !userClosestNodeKeyForDijkstra) {
+        alert("Cannot determine nearest service point for network routing. Try clicking the map again.");
+        return;
+    }
+    const findBtn = document.getElementById('findNearestBtn');
+    findBtn.disabled = true;
+    clearPreviewDijkstraPath();
+    const infoDiv = document.getElementById("nearestDriverInfo");
+    infoDiv.innerHTML = `<div class="spinner-loader" style="display: block; margin-bottom: 5px;"></div><p>Finding nearest driver...</p>`;
+    infoDiv.style.display = 'block';
+    currentNearestDriverForConfirmation = null;
+    const selectedVehicleType = document.getElementById('vehicleTypeSelect').value;
+
+    // ==========================================================
+    // ===== START OF REPLACEMENT LOGIC =====
+    // ==========================================================
+    
+    // 1. Create the base payload object
+    const payload = {
+        user_closest_node: userClosestNodeKeyForDijkstra,
+        vehicle_type: selectedVehicleType,
+        exclude_drivers: excludedDriverEmails // 2. Add the entire array of excluded emails
+    };
+
+    console.log("Searching for nearest driver with payload:", payload);
+
+    // ==========================================================
+    // ===== END OF REPLACEMENT LOGIC =====
+    // ==========================================================
+
+    fetch('/find-nearest-driver-dijkstra', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload) // 3. Send the payload with the array
+        })
+        .then(r => {
+            if (!r.ok) return r.text().then(text => {
+                throw new Error("Server error: " + r.status + " " + text.substring(0, 100))
+            });
+            return r.json();
+        })
+        .then(d => {
+            if (d.success && d.nearest_driver) {
+                currentNearestDriverForConfirmation = d.nearest_driver;
+                drawOrUpdateAllDriverMarkers();
+                let vL = selectedVehicleType ? selectedVehicleType : 'Vehicle';
+                if (selectedVehicleType && d.nearest_driver.vehicle && !d.nearest_driver.vehicle.toLowerCase().includes(selectedVehicleType.toLowerCase())) vL = d.nearest_driver.vehicle || 'Vehicle';
+                infoDiv.innerHTML = `<p><strong>Nearest ${vL}:</strong> ${d.nearest_driver.name} (Node ${d.nearest_driver.node})<br>Vehicle: ${d.nearest_driver.vehicle||'N/A'}<br>Path Dist: ${d.nearest_driver.graph_distance} units</p><button class="btn-confirm" onclick="confirmRequestAndClearPreview()">Confirm</button> <button class="btn-cancel" onclick="cancelDriverSelectionAndClearPreview()">Cancel</button>`;
+            } else {
+                infoDiv.innerHTML = `<p>${d.message||`No reachable ${selectedVehicleType||'drivers'} found.`}</p>`;
+                // Clear the exclusion list if no drivers are found at all, allowing the user to start a fresh search
+                if (!d.nearest_driver) {
+                    excludedDriverEmails = [];
+                    console.log("No drivers found. Exclusion list has been reset.");
+                }
+                drawOrUpdateAllDriverMarkers();
+            }
+        }).catch(e => {
+            console.error("Dijkstra fetch err:", e);
+            infoDiv.innerHTML = `<p style="color:red;">Error: ${e.message}</p>`;
+            drawOrUpdateAllDriverMarkers();
+        }).finally(() => {
+            if (findBtn) findBtn.disabled = false;
+        });
+};
+
+
+// And ensure your 'ride_accepted' and 'ride_completed' listeners clear the list
+
+
+    window.cancelDriverSelectionAndClearPreview = function() {
+    clearPreviewDijkstraPath();
+    currentNearestDriverForConfirmation = null;
+    drawOrUpdateAllDriverMarkers(); // Redraws markers to remove the "preview" icon
+    document.getElementById("nearestDriverInfo").style.display = 'none';
+
+    // Re-enable the main "Find Nearest" button
+    const findBtn = document.getElementById('findNearestBtn');
+    if (findBtn) {
+        // Enable the button only if the user has set their location
+        findBtn.disabled = !(currentUserLatitude !== null && currentUserLongitude !== null);
+    }
+};
+
+window.confirmRequestAndClearPreview = function() {
+    if (!currentNearestDriverForConfirmation || currentUserLatitude === null) {
+        alert("Driver selection or your location is not properly set.");
+        cancelDriverSelectionAndClearPreview();
+        return;
+    }
+
+    const infoDiv = document.getElementById("nearestDriverInfo");
+    infoDiv.innerHTML = `<p>Sending request to ${currentNearestDriverForConfirmation.name}... Please wait.</p>`;
+    
+    // Disable the buttons in the info div to prevent double-clicks
+    infoDiv.querySelectorAll('button').forEach(btn => btn.disabled = true);
+    
+    const driverEmailToSend = currentNearestDriverForConfirmation.email;
+    
+    // Clear visual previews from the map
+    clearPreviewDijkstraPath();
+    currentNearestDriverForConfirmation = null;
+    drawOrUpdateAllDriverMarkers();
+    clearMainAcceptedRoute();
+
+    fetch('/request-ride', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ driver_email: driverEmailToSend })
+    })
+    .then(r => {
+        if (!r.ok) return r.text().then(t => { throw new Error("Server error: " + r.status + " " + t.substring(0, 100)) });
+        return r.json();
+    })
+    .then(d => {
+        if (!d.success) {
+            throw new Error(d.message || "Request failed.");
+        }
+        
+        // --- DYNAMIC UI UPDATE ON SUCCESS ---
+        // 1. Hide the driver selection/info box
+        infoDiv.style.display = 'none';
+        
+        // 2. Update the main status notification panel
+        const notificationsDiv = document.getElementById('notifications');
+        if (notificationsDiv) {
+    notificationsDiv.innerHTML = `
+        <h4>Current Ride Status:</h4>
+        <p class="status-pending">
+            Request sent. Waiting for driver to respond...
+        </p>
+        <small style="color: #555;">(If there is no response within 2 minutes, we will automatically search for the next nearest driver for you.)</small>
+    `;
+}
+        
+        // 3. Disable the main "Find Nearest Driver" button until the request is resolved
+        const findBtn = document.getElementById('findNearestBtn');
+        if (findBtn) {
+            findBtn.disabled = true;
+        }
+
+    })
+    .catch(e => {
+        console.error('Ride request error:', e);
+        // On error, show a try again button
+        infoDiv.innerHTML = `
+            <p style="color:red;">Error: ${e.message}</p>
+            <button class="btn-secondary" onclick="findNearestAndShowPreview()">Try Again</button>
+        `;
+        document.getElementById('findNearestBtn').disabled = false;
+    });
+};
 </script>
 {% endblock %}
