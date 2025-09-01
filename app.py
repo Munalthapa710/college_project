@@ -520,8 +520,8 @@ def request_ride():
     try:
         db.session.commit()
                 # --- SCHEDULE THE TIMEOUT CHECK ---
-        # Run the job 2 minutes from now
-        run_time = datetime.now(timezone.utc) + timedelta(minutes=2)
+        # Run the job 1 minutes from now
+        run_time = datetime.now(timezone.utc) + timedelta(minutes=1)
         scheduler.add_job(
             check_and_reroute_ride, 
             'date', 

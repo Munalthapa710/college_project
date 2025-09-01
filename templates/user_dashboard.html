@@ -869,7 +869,7 @@ window.confirmRequestAndClearPreview = function() {
         <p class="status-pending">
             Request sent. Waiting for driver to respond...
         </p>
-        <small style="color: #555;">(If there is no response within 2 minutes, we will automatically search for the next nearest driver for you.)</small>
+        <small style="color: #555;">(If there is no response within 1 minutes, we will automatically search for the next nearest driver for you.)</small>
     `;
 }
         
@@ -890,5 +890,6 @@ window.confirmRequestAndClearPreview = function() {
         document.getElementById('findNearestBtn').disabled = false;
     });
 };
+
 </script>
 {% endblock %}

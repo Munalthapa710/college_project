@@ -15,7 +15,7 @@ The system is divided into three distinct roles, each with a tailored set of fea
 - **Live Map Dashboard:** View a real-time map displaying all available and approved emergency vehicles.
 - **Fixed POI Display:** See the locations of critical infrastructure like hospitals and police stations pinned on the map.
 - **Intelligent Dispatch:** Request help and have the system automatically find the nearest available driver based on a network graph (Dijkstra's algorithm), not just straight-line distance.
-- **Request Timeout & Rerouting:** If a requested driver doesn't respond within 2 minutes, the system automatically cancels the request and dispatches the next nearest driver.
+- **Request Timeout & Rerouting:** If a requested driver doesn't respond within 1 minutes, the system automatically cancels the request and dispatches the next nearest driver.
 - **Real-time Status Updates:** Receive instant WebSocket notifications when a driver accepts, rejects, or completes a ride.
 - **Temporary Live Chat:** Once a ride is accepted, a temporary chat box appears, allowing direct communication with the responding driver. The chat disappears when the ride is complete.
 - **Ride History:** View a complete history of all past ride requests.
