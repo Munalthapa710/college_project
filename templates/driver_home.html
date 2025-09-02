@@ -1,10 +1,8 @@
 {% extends 'driver_base.html' %}
 
 {% block content %}
-<!-- Add a wrapper div with a specific class for the driver home page -->
 <div class="home-container driver-home">
 
-    <!-- newsec Section: The main welcome message -->
     <section class="newsec-section">
         <div class="newsec-text">
             <h1>Ready for Duty, <span class="highlight">{{ driver.name }}</span>!</h1>
@@ -16,12 +14,11 @@
             </a>
         </div>
         <div class="newsec-image">
-            <!-- Make sure you have an image at this path -->
             <img src="{{ url_for('static', filename='images/img1.png') }}" alt="Emergency Vehicle Illustration">
         </div>
     </section>
 
-    <!-- Features Section: Reinforces the driver's role -->
+    <!--  Reinforces the driver's role -->
     <section class="features-section">
         <h2>Your Mission-Critical Tools</h2>
         <div class="features-grid">

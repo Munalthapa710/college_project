@@ -330,10 +330,15 @@ def register():
                                    form_data=form_data_to_pass)
 
         
+        # Securely hash the password provided by the user
+        hashed_password = generate_password_hash(password)
+
         if role == 'driver':
-            new_entity = Driver(email=email, name=name, phone=phone, password=password, vehicle=vehicle, node=node_from_form) 
+    # Save the HASHED password, not the plain text one
+            new_entity = Driver(email=email, name=name, phone=phone, password=hashed_password, vehicle=vehicle, node=node_from_form) 
         else: 
-            new_entity = User(email=email, name=name, phone=phone, password=password, latitude=None, longitude=None) 
+    # Save the HASHED password for the user as well
+            new_entity = User(email=email, name=name, phone=phone, password=hashed_password, latitude=None, longitude=None)
         db.session.add(new_entity)
         try: 
             db.session.commit()
@@ -344,6 +349,7 @@ def register():
             print(f"DATABASE COMMIT ERROR during registration: {e}")
             flash(f"An unexpected error occurred: {str(e)[:100]}...", 'error') 
             return render_template('register.html', nodes=coordinates.keys(), form_data=form_data_to_pass)
+
     return render_template('register.html', nodes=coordinates.keys(), form_data={})
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -364,7 +370,7 @@ def login():
         login_successful = False
         if role == 'driver':
             driver = Driver.query.filter_by(email=email).first() # Query by normalized email
-            if driver and driver.password == password: 
+            if driver and check_password_hash(driver.password, password):
                 if not driver.is_approved:
                     flash('Your driver account is pending approval from an administrator.', 'warning')
                     return render_template('login.html', form_data=form_data_to_pass)
@@ -374,8 +380,8 @@ def login():
                 return redirect(url_for('driver_home'))
             
         elif role == 'user':
-            user = User.query.filter_by(email=email).first() # Query by normalized email
-            if user and user.password == password: 
+             user = User.query.filter_by(email=email).first()
+             if user and check_password_hash(user.password, password): 
                 session['user'] = user.email
                 flash(f'Welcome', 'success')
                 login_successful = True
@@ -865,11 +871,11 @@ def edit_user_profile():
 
         # Update password if new password is provided and matches confirmation
         if new_password:
-            if new_password == confirm_password:
-                user.password = new_password 
-                flash('Password updated successfully.', 'success')
-            else:
-                flash('New passwords do not match. Password not updated.', 'error')
+           if new_password == confirm_password:
+              user.password = generate_password_hash(new_password) # Hash the new password
+              flash('Password updated successfully.', 'success')
+        else:
+              flash('New passwords do not match. Password not updated.', 'error')
         
         try:
             db.session.commit()
@@ -919,11 +925,9 @@ def edit_driver_profile():
 
 
         if new_password:
-            if new_password == confirm_password:
-                driver.password = new_password 
-                flash('Password updated.', 'success')
-            else:
-                flash('New passwords do not match. Password not updated.', 'error')
+           if new_password == confirm_password:
+              driver.password = generate_password_hash(new_password) # Hash the new password
+              flash('Password updated.', 'success')
         
         try:
             db.session.commit()

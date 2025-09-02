@@ -2,7 +2,7 @@
 
 {% block content %}
 <h2>Admin Dashboard</h2>
-
+<!-- stats card sections -->
 <div class="stats-grid">
     <div class="stat-card">
         <h3>Approved Drivers</h3>
@@ -59,6 +59,10 @@
 
 {% block scripts_extra %}
 <script>
+     /**
+     * Finds and removes a driver's row from the pending approval table with a fade-out effect.
+     * Reloads the page afterwards to ensure statistics are updated.
+     */
         function removeDriverRow(email) {
         const rowId = `driver-row-${email.replace('@', '_').replace('.', '_')}`;
         const row = document.getElementById(rowId);
