@@ -90,7 +90,7 @@
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Remove the row from the table for a smooth UI update
+                
                 const rowId = `driver-row-${email.replace('@', '_').replace('.', '_')}`;
                 const row = document.getElementById(rowId);
                 if (row) {
@@ -98,7 +98,7 @@
                     row.style.opacity = '0';
                     setTimeout(() => {
                         row.remove();
-                        // Optionally, refresh the whole page to update stats, or update them with JS
+                        
                         window.location.reload(); 
                     }, 500);
                 } else {

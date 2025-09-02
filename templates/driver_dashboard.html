@@ -287,17 +287,49 @@
 
             // Listen for new ride requests from the server
             socket.on('new_ride_request', function(data) {
-                console.log('[DRIVER DASH] Received new_ride_request:', data);
-              
-                // For, alert and reload.
-                if (document.hidden) { 
-                    alert(`New Ride Request (tab was inactive): From ${data.user_name} at ${data.timestamp}. Please check your dashboard.`);
-                } else {
-                    alert(`New Ride Request: From ${data.user_name} at ${data.timestamp}`);
-                }
-                location.reload(); 
-            });
-
+     console.log('[DRIVER DASH] Received new_ride_request, updating UI dynamically:', data);
+     alert(`New Ride Request: From ${data.user_name}`);
+ 
+     // Add new request data to our global list for consistency
+     pendingRequestsDataGlobal.push(data);
+ 
+     // Find the container for pending requests
+     const requestsContainer = document.getElementById('requests');
+     if (requestsContainer) {
+         // If the "No pending requests" message is showing, remove it
+         const noRequestsP = requestsContainer.querySelector('p');
+         if (noRequestsP && noRequestsP.textContent.includes('No pending requests')) {
+             noRequestsP.remove();
+         }
+         
+         // Create a new div element for the new request
+         const newRequestDiv = document.createElement('div');
+         newRequestDiv.className = 'request-item';
+         newRequestDiv.id = `request-${data.id}`; // Give it a unique ID
+         
+         // Populate the new div with the request details
+         newRequestDiv.innerHTML = `
+             <p>
+                 <strong>User:</strong> ${data.user_name} (${data.user_email || 'N/A'})<br />
+                 <strong>User's Location (Lat/Lng):</strong> (${data.user_latitude.toFixed(6)}, ${data.user_longitude.toFixed(6)})<br />
+                 <strong>Time Requested:</strong> ${data.timestamp}
+             </p>
+             <button onclick="respondToRequest('${data.id}', 'accepted')" class="btn-confirm">Accept</button>
+             <button onclick="respondToRequest('${data.id}', 'rejected')" class="btn-cancel">Reject</button>
+         `;
+         // Add the new request to the top of the list
+         requestsContainer.prepend(newRequestDiv);
+     }
+     
+     // Add a new orange marker for the pending user to the map
+     if (data.user_latitude != null && data.user_longitude != null) {
+         const userLatLng = L.latLng(data.user_latitude, data.user_longitude);
+         const pendingMarker = L.marker(userLatLng, { icon: pendingUserIcon })
+             .addTo(map)
+             .bindPopup(`PENDING: ${data.user_name || 'User'}`);
+         pendingUserMapMarkers[data.id.toString()] = pendingMarker;
+     }
+ });
             // ===== THE NEW LISTENER  =====
             socket.on('receive_chat_message', function(data) {
                 console.log("Driver received chat message:", data);
@@ -371,40 +403,60 @@
       }
     }
 
-    window.respondToRequest = function(requestId, action) {
-      const url = action === 'accepted' ? '/accept-request' : '/reject-request';
-      fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ id: requestId }) })
-      .then(res => res.json()).then(data => {
-        if (!data.success) throw new Error(data.message || "Operation failed");
-        if (action === 'accepted') {
-          const acceptedReqDetails = pendingRequestsDataGlobal.find(r => r.id.toString() === requestId.toString());
-          if (pendingUserMapMarkers[requestId.toString()]) { map.removeLayer(pendingUserMapMarkers[requestId.toString()]); delete pendingUserMapMarkers[requestId.toString()]; }
+     window.respondToRequest = function(requestId, action) {
+     const url = action === 'accepted' ? '/accept-request' : '/reject-request';
+     const requestItemDiv = document.getElementById(`request-${requestId}`);
 
-          if (acceptedReqDetails && acceptedReqDetails.user_latitude !== null && acceptedReqDetails.user_longitude !== null) {
-            clearRouteAndAcceptedUserMarker();
-            drawRouteToAcceptedUser(
-                L.latLng(acceptedReqDetails.user_latitude, acceptedReqDetails.user_longitude),
-                acceptedReqDetails.user_name
-            );
-            activeRideDataForCompletion = acceptedReqDetails;
-            updateActiveRideDisplay(true);
-            showChatBox(acceptedReqDetails); 
+     // Immediately disable buttons to prevent double-clicks
+     if (requestItemDiv) {
+         requestItemDiv.querySelectorAll('button').forEach(btn => btn.disabled = true);
+     }
 
-          } else {
-              console.error("Driver: After accept, user lat/lng is MISSING/INVALID for req ID:", requestId);
-              alert("Request accepted, but user location data is missing/invalid. Page will reload.");
-          }
-        } else {
-            if (activeRideDataForCompletion && activeRideDataForCompletion.id && activeRideDataForCompletion.id.toString() === requestId.toString()) {
-                clearRouteAndAcceptedUserMarker(); activeRideDataForCompletion = null; updateActiveRideDisplay(false);
-            }
-        }
-        setTimeout(() => location.reload(), 1000);
-      }).catch(error => {
-          console.error("Driver: Failed to update request status:", error);
-          alert(`Operation failed: ${error.message}`);
-      });
-    }
+     fetch(url, { 
+         method: 'POST', 
+         headers: {'Content-Type': 'application/json'}, 
+         body: JSON.stringify({ id: requestId }) 
+     })
+     .then(res => res.json())
+     .then(data => {
+         if (!data.success) throw new Error(data.message || "Operation failed");
+
+         // On success, dynamically remove the request from the list with a fade effect
+         if (requestItemDiv) {
+             requestItemDiv.style.transition = 'opacity 0.5s ease';
+             requestItemDiv.style.opacity = '0';
+             setTimeout(() => requestItemDiv.remove(), 500);
+         }
+
+         // Also remove the pending user's marker from the map
+         if (pendingUserMapMarkers[requestId.toString()]) {
+             map.removeLayer(pendingUserMapMarkers[requestId.toString()]);
+             delete pendingUserMapMarkers[requestId.toString()];
+         }
+         
+         // If the action was 'accepted', update the rest of the UI
+         if (action === 'accepted') {
+             const acceptedReqDetails = pendingRequestsDataGlobal.find(r => r.id.toString() === requestId.toString());
+             if (acceptedReqDetails && acceptedReqDetails.user_latitude !== null) {
+                 drawRouteToAcceptedUser(L.latLng(acceptedReqDetails.user_latitude, acceptedReqDetails.user_longitude), acceptedReqDetails.user_name);
+                 activeRideDataForCompletion = acceptedReqDetails;
+                 updateActiveRideDisplay(true);
+                 showChatBox(acceptedReqDetails);
+             } else {
+                 alert("Request accepted, but location data is missing. Page will reload as a fallback.");
+                 location.reload(); // Only reload if there's an error
+             }
+         }
+     })
+     .catch(error => {
+         console.error("Driver: Failed to update request status:", error);
+         alert(`Operation failed: ${error.message}`);
+         // Re-enable the buttons if the request failed to send
+         if (requestItemDiv) {
+             requestItemDiv.querySelectorAll('button').forEach(btn => btn.disabled = false);
+         }
+     });
+ };
     window.markRideCompleted = function() {
         if (!activeRideDataForCompletion || !activeRideDataForCompletion.id) { alert("No active ride selected."); return; }
         hideChatBox();

@@ -627,83 +627,89 @@ socket.on('ride_timeout_no_drivers', function(data) {
             });
 
             // Listen for ride status updates from the server
-            socket.on('ride_accepted', function(data) {
-    console.log('[USER DASH] Ride accepted, updating UI dynamically:', data);
-    excludedDriverEmails = []; // Reset the exclusion list on a successful ride
-    alert(data.message);
+             socket.on('ride_accepted', function(data) {
 
-    // Step 1: Update the status panel to show a success message
-    const notificationsDiv = document.getElementById('notifications');
-    if (notificationsDiv) {
-        notificationsDiv.innerHTML = `<h4>Current Ride Status:</h4><p class="status-accepted">${data.message}</p>`;
+    const chatBox = document.getElementById('temporaryChatBox');
+    if (chatBox) {
+        chatBox.style.display = 'flex';
+        activeRideForChat = data;
+    } else {
+        console.error("FAILURE of chatbox");
     }
-    
-    // Step 2: Hide the driver search UI and disable the main find button
-    document.getElementById("nearestDriverInfo").style.display = 'none';
-    document.getElementById('findNearestBtn').disabled = true;
-
-    // Step 3: Draw the route, update the driver icon, and show the chat box
-    if (data.driver_node && coordsDataForDrivers[data.driver_node] && data.user_latitude_for_route != null) {
-        const driverLatLng = L.latLng(coordsDataForDrivers[data.driver_node][0], coordsDataForDrivers[data.driver_node][1]);
-        const userLatLng = L.latLng(data.user_latitude_for_route, data.user_longitude_for_route);
-
-        if (userLiveMarker) {
-            userLiveMarker.setLatLng(userLatLng);
-        }
-        drawMainAcceptedRoute(userLatLng, driverLatLng);
-        
-        // Update the global state so `drawOrUpdateAllDriverMarkers` knows which driver is en-route
-        currentRideStatusFromServer = { type: 'accepted', driver_name: data.driver_name, ride_id: data.ride_id };
-        drawOrUpdateAllDriverMarkers(); // This will change the driver's icon to the blue "en-route" one
-        
-        showChatBox(data); // Show the chat
-    }
-});
-
-            socket.on('ride_rejected', function(data) {
-    console.log('[USER DASH] Ride rejected, updating UI dynamically:', data);
-    alert(data.message);
-
-    
-    if (data.driver_email && !excludedDriverEmails.includes(data.driver_email)) {
-        excludedDriverEmails.push(data.driver_email);
-        console.log("Updated exclusion list:", excludedDriverEmails);
-    }
-
-    
-    const notificationsDiv = document.getElementById('notifications');
-    if (notificationsDiv) {
-        notificationsDiv.innerHTML = `
-            <h4>Current Ride Status:</h4>
-            <p class="status-rejected">${data.message}</p>
-            <button onclick="findNearestAndShowPreview(false)" class="btn-secondary" style="margin-top: 10px;">Find Another Driver</button>
-        `;
-    }
-    
-    
-    document.getElementById('findNearestBtn').disabled = false;
-    
-    
-    cancelDriverSelectionAndClearPreview();
-});
+     console.log('[USER DASH] Ride accepted, updating UI dynamically:', data);
+     excludedDriverEmails = []; // Reset the exclusion list on a successful ride
+     alert(data.message);
+ 
+     // Step 1: Update the status panel to show a success message
+     const notificationsDiv = document.getElementById('notifications');
+     if (notificationsDiv) {
+         notificationsDiv.innerHTML = `<h4>Current Ride Status:</h4><p class="status-accepted">${data.message}</p>`;
+     }
+     
+     // Step 2: Hide the driver search UI and disable the main find button
+     document.getElementById("nearestDriverInfo").style.display = 'none';
+     document.getElementById('findNearestBtn').disabled = true;
+ 
+     // Step 3: Draw the route, update the driver icon, and show the chat box
+     if (data.driver_node && coordsDataForDrivers[data.driver_node] && data.user_latitude_for_route != null) {
+         const driverLatLng = L.latLng(coordsDataForDrivers[data.driver_node][0], coordsDataForDrivers[data.driver_node][1]);
+         const userLatLng = L.latLng(data.user_latitude_for_route, data.user_longitude_for_route);
+ 
+         if (userLiveMarker) {
+             userLiveMarker.setLatLng(userLatLng);
+         }
+         drawMainAcceptedRoute(userLatLng, driverLatLng);
+         
+         // Update the global state so `drawOrUpdateAllDriverMarkers` knows which driver is en-route
+         currentRideStatusFromServer = { type: 'accepted', driver_name: data.driver_name, ride_id: data.ride_id };
+         drawOrUpdateAllDriverMarkers(); // This will change the driver's icon to the blue "en-route" one
+         
+         showChatBox(data); // This will now work instantly.
+     } else {
+         console.error("Data for drawing route is incomplete, forcing a reload as fallback.", data);
+         location.reload(); // Only reload if the data is bad.
+     }
+ });
+             
+ socket.on('ride_rejected', function(data) {
+     console.log('[USER DASH] Ride rejected, updating UI dynamically:', data);
+     alert(data.message);
+ 
+     // Add the rejected driver to our exclusion list
+     if (data.driver_email && !excludedDriverEmails.includes(data.driver_email)) {
+         excludedDriverEmails.push(data.driver_email);
+     }
+ 
+     // Update the status panel to show the rejection and the "Find Another Driver" button
+     const notificationsDiv = document.getElementById('notifications');
+     if (notificationsDiv) {
+         notificationsDiv.innerHTML = `
+             <h4>Current Ride Status:</h4>
+             <p class="status-rejected">${data.message}</p>
+             <button onclick="findNearestAndShowPreview(false)" class="btn-secondary" style="margin-top: 10px;">Find Another Driver</button>
+         `;
+     }
+     
+     // Re-enable the main "Find Nearest Driver" button and clean up any preview UI
+     document.getElementById('findNearestBtn').disabled = false;
+     cancelDriverSelectionAndClearPreview();
+ });
             socket.on('ride_completed', function(data) {
-    console.log('[USER DASH] Ride completed, resetting UI.');
-
-    excludedDriverEmails = []; // Reset the exclusion list
-    alert(data.message);
-    hideChatBox();
-
-    // Reset the UI elements to their initial state
-    const notificationsDiv = document.getElementById('notifications');
-    notificationsDiv.innerHTML = '<h4>Current Ride Status:</h4><p>Your previous ride was completed. Click "Find Nearest Driver" to start a new request.</p>';
-    document.getElementById('findNearestBtn').disabled = false;
-    
-    // Clear map elements
-    clearMainAcceptedRoute();
-    currentRideStatusFromServer = null;
-    drawOrUpdateAllDriverMarkers(); // This will reset all driver icons to red
-});
-                 
+     console.log('[USER DASH] Ride completed, resetting UI.');
+     excludedDriverEmails = []; // Reset lists
+     alert(data.message);
+     hideChatBox();
+ 
+     // Reset the UI elements back to their initial state
+     const notificationsDiv = document.getElementById('notifications');
+     notificationsDiv.innerHTML = '<h4>Current Ride Status:</h4><p>Your previous ride was completed. Click "Find Nearest Driver" to start a new request.</p>';
+     document.getElementById('findNearestBtn').disabled = false;
+     
+     // Clear the route from the map and reset driver icons
+     clearMainAcceptedRoute();
+     currentRideStatusFromServer = null;
+     drawOrUpdateAllDriverMarkers();
+ });    
 socket.on('receive_chat_message', function(data) 
             {
             console.log("Received chat message:", data);
