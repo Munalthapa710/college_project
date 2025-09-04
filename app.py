@@ -11,23 +11,19 @@ import os
 from werkzeug.security import generate_password_hash, check_password_hash 
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import timedelta
-app = Flask(__name__)
-app.secret_key = os.urandom(24).hex() 
 
+app = Flask(__name__) 
+app.secret_key = os.urandom(24).hex() 
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-
-os.makedirs(app.instance_path, exist_ok=True)
-
+os.makedirs(app.instance_path, exist_ok=True)#database file creating 
 scheduler = BackgroundScheduler()
 scheduler.start()
-
-socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*")
+socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins="*") # initilize socket 
 db = SQLAlchemy(app)
 
+#to handle time zone (nepal time)
 NPT = pytz.timezone('Asia/Kathmandu')
-
 def format_datetime_npt(dt_utc):
     if dt_utc is None: return "N/A"
     if dt_utc.tzinfo is None or dt_utc.tzinfo.utcoffset(dt_utc) is None:
@@ -37,7 +33,7 @@ def format_datetime_npt(dt_utc):
     dt_npt = dt_utc.astimezone(NPT)
     return dt_npt.strftime('%Y-%m-%d %H:%M NPT')
 
-# --- Models ---
+# Database 
 class Admin(db.Model):
     __tablename__ = 'admin'
     email = db.Column(db.String(120), primary_key=True)
@@ -71,17 +67,15 @@ class Driver(db.Model):
     node = db.Column(db.String(10), nullable=False)
     is_approved = db.Column(db.Boolean, default=False, nullable=False)
 
-# --- CLI COMMAND TO CREATE ADMIN ---
+# cli command for admin 
 @app.cli.command("create-admin")
 def create_admin_command():
     """Creates the initial admin user for the application."""
-    
-    # Check if an admin already exists
     if Admin.query.first():
         print("An admin user already exists. Aborting.")
         return
-
-    # --- CONFIGURE YOUR FIRST ADMIN HERE ---
+    
+    #configuting admin in here
     admin_email = "admin@gmail.com"
     admin_name = "System Administrator"
     admin_password = "Admin123"  
@@ -107,7 +101,7 @@ def init_db_command():
     db.create_all()
     print("Initialized the database.")
 
-# --- Decorators for Authentication ---
+# decorators for Authentication
 def login_required_user(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -167,14 +161,11 @@ def check_and_reroute_ride(ride_id, user_email):
             db.session.commit()
             return
             
-        # This logic is similar to your find-nearest route, but excludes the previous driver
-        # For simplicity, we'll re-implement a small part of it here.
-        # A more advanced implementation might refactor this into a shared helper function.
         
         all_available_drivers = Driver.query.filter(
             Driver.is_approved == True,
             Driver.node.isnot(None),
-            Driver.email != original_request.driver_email # <-- Exclude the previous driver
+            Driver.email != original_request.driver_email 
         ).all()
 
         if not all_available_drivers:
@@ -182,8 +173,7 @@ def check_and_reroute_ride(ride_id, user_email):
             socketio.emit('ride_timeout_no_drivers', {'message': 'Your request timed out and no other drivers are available.'}, room=user_email)
             db.session.commit()
             return
-            
-        # Find closest node to user (you can refactor this to a helper function)
+
         user_latlng = (user.latitude, user.longitude)
         closest_node_key = None
         min_dist = float('inf')
@@ -198,7 +188,7 @@ def check_and_reroute_ride(ride_id, user_email):
             db.session.commit()
             return
 
-        # Find the next nearest driver using Dijkstra
+        # Finding next nearest driver using Dijkstra
         next_driver_obj = None
         min_path_dist = float('inf')
         for driver in all_available_drivers:
@@ -250,7 +240,8 @@ def check_and_reroute_ride(ride_id, user_email):
         }
         socketio.emit('new_ride_request', new_driver_data, room=next_driver_obj.email)
 
-# --- Routes ---
+
+# ----------------------------Routes start from here------------------------------------------------
 @app.route('/')
 def home(): return redirect(url_for('login'))
 
@@ -525,7 +516,7 @@ def request_ride():
     
     try:
         db.session.commit()
-                # --- SCHEDULE THE TIMEOUT CHECK ---
+        # schedile for check out 
         # Run the job 1 minutes from now
         run_time = datetime.now(timezone.utc) + timedelta(minutes=1)
         scheduler.add_job(
@@ -535,7 +526,7 @@ def request_ride():
             args=[new_ride.id, user_email] # Pass the ride_id and user_email to the job
         )
         print(f"[SCHEDULER] Job scheduled for ride ID {new_ride.id} at {run_time.isoformat()}")
-        # --- END SCHEDULING ---
+        #end of scheduling 
 
         # --- SOCKET.IO EMIT for new ride request ---
         driver_target_email_for_room = new_ride.driver_email # The driver's email is the room name
@@ -586,7 +577,7 @@ def accept_request():
             'driver_name': driver_accepting.name if driver_accepting else "Your Driver",
             'driver_node': driver_accepting.node if driver_accepting else None, # User map needs this
             'driver_vehicle': driver_accepting.vehicle if driver_accepting else "N/A",
-            'user_latitude_for_route': req.user_latitude_at_request, # Send user's loc for consistency
+            'user_latitude_for_route': req.user_latitude_at_request, # Send user's location for consistency
             'user_longitude_for_route': req.user_longitude_at_request,
             'message': f"Your ride request (ID: {req.id}) has been accepted by {driver_accepting.name if driver_accepting else 'your driver'}!"
         }
@@ -765,14 +756,14 @@ def user_dashboard():
                     'timestamp': format_datetime_npt(last_inactive_ride_db.timestamp), 
                     'message': msg
                 }
-    # --- END Logic to determine current_ride_status_info ---
+    # end of logic to determine current_ride_status_info 
 
-    # --- Get unique vehicle types from Driver table for the dropdown ---
+    #gGet unique vehicle types from Driver table for the dropdown 
     vehicle_types_query = db.session.query(Driver.vehicle).filter(Driver.vehicle.isnot(None), Driver.vehicle != '').distinct().all()
 
     vehicle_types = sorted([vt[0] for vt in vehicle_types_query if vt[0]]) 
     print(f"[User Dashboard] Unique Vehicle Types Found: {vehicle_types}")
-    # --- END Get unique vehicle types ---
+    # end of unique vehicle types 
 
     response = make_response(render_template('user_dashboard.html', 
                                                 user=user, 
@@ -835,7 +826,7 @@ def your_driver_route_function():
         session.clear()
         return redirect(url_for('login'))
     
-    # Ensure 'driver' is passed here
+    # ensure driver is passed here
     response = make_response(render_template('the_driver_template.html', driver=driver ))
     return add_no_cache_to_response(response)
 @app.route('/logout')
@@ -853,23 +844,23 @@ def edit_user_profile():
         return redirect(url_for('login'))
 
     if request.method == 'POST':
-        # Get data from form
+        # get data from form
         new_name = request.form.get('name', '').strip()
         new_phone = request.form.get('phone', '').strip()
         new_password = request.form.get('new_password', '').strip()
         confirm_password = request.form.get('confirm_password', '').strip()
 
-        # Update name and phone if provided and different
+        # update name and phone if provided and different
         if new_name and new_name != user.name:
             user.name = new_name
             flash('Name updated successfully.', 'success')
         
         if new_phone and new_phone != user.phone:
-            # Add phone number validation if needed
+            # add phone number validation if needed
             user.phone = new_phone
             flash('Phone number updated successfully.', 'success')
 
-        # Update password if new password is provided and matches confirmation
+        # update password if new password is provided and matches confirmation
         if new_password:
            if new_password == confirm_password:
               user.password = generate_password_hash(new_password) # Hash the new password
@@ -985,10 +976,9 @@ def disapprove_driver(driver_email):
     driver = Driver.query.filter_by(email=driver_email, is_approved=False).first()
     
     if not driver:
-        # We check for is_approved=False to prevent accidentally deleting an active driver.
         return jsonify({'success': False, 'message': 'Pending driver not found or is already approved.'}), 404
     
-    driver_name = driver.name # Get name before deleting
+    driver_name = driver.name
     
     db.session.delete(driver)
     db.session.commit()
@@ -1018,7 +1008,6 @@ def global_ride_history():
     admin = Admin.query.get(session['admin'])
     all_rides = RideRequest.query.order_by(RideRequest.timestamp.desc()).all()
     
-    # Enrich ride data with user and driver names
     enriched_rides = []
     for ride in all_rides:
         user = User.query.get(ride.user_email)
@@ -1086,7 +1075,7 @@ def handle_chat_message(data):
         'sender': sender_role
     }
 
-    # Emit the message to the recipient's private room (their email)
+    # Emit the message to the recipient's private room espically mail
     socketio.emit('receive_chat_message', message_payload, room=recipient_email)
     print(f"Relayed chat message for ride {ride_id} from {sender_role} to {recipient_email}: {message_text}")
 

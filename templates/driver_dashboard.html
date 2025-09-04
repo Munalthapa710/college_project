@@ -5,7 +5,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
  <style>
-        /* --- Temporary Chat Box Styles --- */
+        /* Chat-box */
         .chat-container {
             position: fixed;
             bottom: 20px;
@@ -51,7 +51,7 @@
             background-color: #007bff;
             color: white;
             align-self: flex-end;
-            margin-left: auto; /* Push to the right */
+            margin-left: auto; 
         }
         .chat-messages li.received {
             background-color: #e9ecef;
@@ -87,19 +87,19 @@
     cursor: pointer;
 }
 
-/* This class will be toggled by JavaScript */
+/*toggle by js*/
 .chat-container.minimized .chat-messages,
 .chat-container.minimized .chat-input-form {
     display: none;
 }
 
 .chat-container.minimized .chat-toggle-btn::before {
-     content: '○'; /* An open circle for "open me" */
-    font-size: 1.2em; /* Circles can look smaller, so we adjust */
+     content: '○'; 
+    font-size: 1.2em;
     line-height: 1;
 }
 .chat-container:not(.minimized) .chat-toggle-btn::before {
-    content: '−'; /* A proper minus sign for "minimize me" */
+    content: '−'; 
     font-size: 1.5em; 
     line-height: 1;
 }
@@ -123,7 +123,7 @@
         Mark Ride as Completed
     </button>
 </div>
- <!-- ===== NEW CHAT BOX HTML ===== -->
+ <!-- Html for chatbox -->
     <div id="temporaryChatBox" class="chat-container">
         <div class="chat-header" onclick="toggleChatWindow()">
     <span>Chat with User</span>
@@ -137,7 +137,7 @@
             <button type="submit" class="btn-confirm"><i class="fas fa-paper-plane"></i></button>
         </form>
     </div>
-    <!-- ===== END CHAT BOX HTML ===== -->
+    <!-- end of html of chat-box -->
 
 <h3>Pending Ride Requests</h3>
 <div id="requests">
@@ -330,12 +330,12 @@
          pendingUserMapMarkers[data.id.toString()] = pendingMarker;
      }
  });
-            // ===== THE NEW LISTENER  =====
+            // new listner
             socket.on('receive_chat_message', function(data) {
                 console.log("Driver received chat message:", data);
                 appendChatMessage(data.message, 'received');
             });
-            // ===== END OF NEW LISTENER =====
+            // end
 
             socket.on('status_update', function(data) { // For join confirmation
                  console.log('[DRIVER DASH] Received status_update:', data.msg);
