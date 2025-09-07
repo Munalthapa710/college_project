@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, session, jsonify, make_response, url_for, flash 
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timezone
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, emit, join_room
 import pytz
 import re
 from functools import wraps 
