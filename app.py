@@ -67,7 +67,7 @@ class Driver(db.Model):
     node = db.Column(db.String(10), nullable=False)
     is_approved = db.Column(db.Boolean, default=False, nullable=False)
 
-# cli command for admin 
+# cli command for admin #ACT AS DECORATOR
 @app.cli.command("create-admin")
 def create_admin_command():
     """Creates the initial admin user for the application."""
@@ -817,6 +817,7 @@ def driver_history():
                'status': r.status, 'timestamp': format_datetime_npt(r.timestamp)} for r in reqs_db]
     response = make_response(render_template('driver_history.html', requests=s_reqs))
     return add_no_cache_to_response(response)
+
 @app.route('/your-driver-route')
 @login_required_driver
 def your_driver_route_function():
@@ -829,6 +830,7 @@ def your_driver_route_function():
     # ensure driver is passed here
     response = make_response(render_template('the_driver_template.html', driver=driver ))
     return add_no_cache_to_response(response)
+
 @app.route('/logout')
 def logout(): 
     session.clear()
@@ -878,7 +880,6 @@ def edit_user_profile():
         return redirect(url_for('edit_user_profile')) 
     response = make_response(render_template('edit_user_profile.html', user=user, title="Edit Your Profile"))
     return add_no_cache_to_response(response)
-
 
 @app.route('/edit-driver-profile', methods=['GET', 'POST'])
 @login_required_driver
