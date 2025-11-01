@@ -282,10 +282,15 @@ window.cancelPoiRoute = function() {
     }
      if (!mainAcceptedRouteControl) {
        
-        if (userLiveMarker && userLiveMarker.dragging) { userLiveMarker.dragging.enable(); }
+        if (userLiveMarker && userLiveMarker.dragging)
+         { userLiveMarker.dragging.enable(); 
+           console.log("ROUTE CANCELLED: Marker dragging has been ENABLED."); 
+         }
         
         
         map.on('click', handleMapClickToSetLocation);
+        console.log("ROUTE CANCELLED: Map click-to-move listener has been turned ON.");
+    } else {
         console.log("FIX: Map click-to-move has been ENABLED.");
     }
 
@@ -327,7 +332,10 @@ window.routeToService = function(markerId) {
         alert("Please set your location on the map first.");
         return;
     }
-    if (userLiveMarker.dragging) { userLiveMarker.dragging.disable(); }
+    if (userLiveMarker.dragging) 
+    { userLiveMarker.dragging.disable(); 
+      console.log("ROUTE STARTED: Marker dragging has been DISABLED.");  
+    }
      map.off('click', handleMapClickToSetLocation);
      console.log("FIX: Map click-to-move has been DISABLED.");
 
@@ -547,7 +555,9 @@ window.routeToService = function(markerId) {
           console.log("[USER DASH] Adding userLiveMarker at:", userMarkerInitialLatLng.toString());
           userLiveMarker = L.marker(userMarkerInitialLatLng, { icon: userIcon, draggable: true })
             .addTo(map).bindPopup(currentUserLatitude !== null ? `Your Location: (${currentUserLatitude.toFixed(6)}, ${currentUserLongitude.toFixed(6)})` : "Click map to set your location").openPopup();
-          userLiveMarker.on('dragend',function(e){ updateUserPreciseLocationAndSave(e.target.getLatLng()); });
+          userLiveMarker.on('dragend',function(e){
+             updateUserPreciseLocationAndSave(e.target.getLatLng()); 
+            });
           map.on("click", handleMapClickToSetLocation);
           console.log("[USER DASH] userLiveMarker and event listeners added.");
 
