@@ -619,18 +619,144 @@ nav.navbar .navbar-profile .profile-image-clickable i.far::before {
 }
 
 .driver-home .highlight {
-    color: #ffc107; /* A nice, contrasting gold/yellow color for the driver theme */
+    color: #ffc107; 
 }
 
 .driver-home .cta-button {
-    background-color: #343a40; /* Driver navbar color */
+    background-color: #343a40; 
 }
 
 .driver-home .cta-button:hover {
-    background-color: #23272b; /* A darker shade */
+    background-color: #23272b; 
     box-shadow: 0 4px 10px rgba(52, 58, 64, 0.2);
 }
 
 .driver-home .features-section h2 {
     color: #343a40; /* Driver theme color */
+}
+
+.site-footer .footer-bottom-row {
+    display: flex;         
+    justify-content: center; 
+    padding-top: 15px;
+}
+
+
+
+.site-footer .copyright-text {
+    margin: 0;
+    color: #888;
+}
+
+/* --- Responsive styles for the grid on smaller screens --- */
+@media (max-width: 767px) {
+    .site-footer .footer-bottom-row {
+        grid-template-columns: 1fr; /* Switch to a single column layout */
+        text-align: center;
+        gap: 15px; /* Space between rows when stacked */
+    }
+
+    /* Reset grid placement for stacking */
+    .site-footer .footer-bottom-row > div:first-child,
+    .site-footer .footer-bottom-row > div:last-child {
+        grid-column: 1; /* Both items go into the single column */
+        text-align: center; /* Center all content */
+    }
+}
+.site-footer {
+    background-color: #26272b !important; /* Force the dark background */
+    padding: 40px 0 20px;
+    font-size: 15px;
+    line-height: 24px;
+    color: #888;
+}
+
+.footer-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 25px;
+}
+
+.site-footer a {
+    color: #888;
+    text-decoration: none;
+}
+
+.site-footer a:hover {
+    color: #ffffff;
+}
+
+/* --- Top Section: 2-Column Layout --- */
+.site-footer .footer-main-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 40px;
+    margin-bottom: 25px;
+}
+
+.site-footer .footer-column {
+    flex: 1;
+    min-width: 280px;
+}
+
+.site-footer h6 {
+    color: #fff;
+    font-size: 1em;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 5px;
+    margin-bottom: 20px;
+}
+
+.site-footer p.text-justify {
+    color: #ccc;
+}
+
+/* --- Contact List in Right Column --- */
+.site-footer .contact-list {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.site-footer .contact-list li {
+    margin-bottom: 12px;
+}
+
+.site-footer .contact-list a {
+    display: flex;
+    align-items: center;
+    color: #ccc;
+}
+
+.site-footer .contact-list a i {
+    font-size: 1.1em;
+    width: 28px;
+    text-align: center;
+    margin-right: 10px;
+    color: #007bff;
+}
+
+
+.site-footer hr.footer-divider {
+    border-top: 1px solid #444;
+    margin: 20px 0;
+}
+
+
+.site-footer .footer-bottom-row {
+    padding-top: 15px;
+    text-align: center; 
+}
+
+.site-footer .copyright-text {
+    margin: 0;
+    color: #888;
+    display: inline-block; 
+}
+
+.site-footer .copyright-text strong {
+    color: #fff;
 }

@@ -46,6 +46,8 @@
     <div class="dashboard-content">
         {% block content %}{% endblock %}
     </div>
+    
+    {% include 'footer.html' %}
 
     <script type="text/javascript">
         window.addEventListener('pageshow', function(event) { if (event.persisted) { window.location.reload(); } });
