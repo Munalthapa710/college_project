@@ -415,13 +415,14 @@ def set_user_current_location():
 @app.route('/find-nearest-driver-dijkstra', methods=['POST'])
 @login_required_user
 def find_nearest_driver_dijkstra():
+     # 1. Receives the start node from the browser's request
     data = request.get_json()
     if not data: 
         return jsonify({'error': 'Invalid request: No JSON data received', 'success': False}), 400
     
-    user_closest_node = data.get('user_closest_node')
+    user_closest_node = data.get('user_closest_node') #give user closest node using hav
+
     selected_vehicle_type = data.get('vehicle_type', "").strip().lower() # Get selected vehicle type, lowercase for case-insensitive compare
-    
     drivers_to_exclude = data.get('exclude_drivers', [])
 
     if not user_closest_node or user_closest_node not in graph or user_closest_node not in coordinates:
@@ -440,6 +441,7 @@ def find_nearest_driver_dijkstra():
     if selected_vehicle_type:
         driver_query = driver_query.filter(db.func.lower(Driver.vehicle).contains(selected_vehicle_type))
        
+    # 2. Gets a list of all available and approved drivers from the database   
     available_drivers = driver_query.all()
     nearest_driver_info = None
     min_distance = float('inf')
@@ -449,11 +451,20 @@ def find_nearest_driver_dijkstra():
         if not selected_vehicle_type: message = "No drivers currently available or their nodes are not in routing graph."
         return jsonify({'message': message, 'success': True, 'nearest_driver': None})
 
+# 3. THIS IS THE CORE ALGORITHM LOOP
     for driver in available_drivers:
-        # driver.node is already confirmed to be in graph by the query filter
+       
+     # For each driver, it calls your Dijkstra implementation
+        # It passes the graph, the user's start node, and the driver's current node
+        
+        # --- REDIRECTION TO dijkstra.py ---   
+    
         distance = dijkstra(graph, user_closest_node, driver.node)
+        # --- END REDIRECTION ---
+
         print(f"Dijkstra: UserNode '{user_closest_node}' to DriverNode '{driver.node}' (Driver: {driver.name}, Vehicle: {driver.vehicle}): dist {distance}")
 
+     # 4. It compares the result to find the minimum distance
         if distance < min_distance: # Check if distance is not infinity
             min_distance = distance
             path = shortest_path(graph, user_closest_node, driver.node)
@@ -470,7 +481,7 @@ def find_nearest_driver_dijkstra():
                 if min_distance != float('inf'): 
                     print(f"Warning: Dijkstra found distance {min_distance} but shortest_path returned no path for {user_closest_node} to {driver.node}")
                 min_distance = float('inf') 
-                
+    # 5. The function finishes by returning the details of the best driver found.
     if nearest_driver_info: 
         return jsonify({'success': True, 'nearest_driver': nearest_driver_info})
     message = f"No reachable '{selected_vehicle_type if selected_vehicle_type else 'drivers'}' found via network path."
