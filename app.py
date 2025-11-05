@@ -527,7 +527,7 @@ def request_ride():
     
     try:
         db.session.commit()
-        # schedile for check out 
+        # ap--scheduler for check out 
         # Run the job 1 minutes from now
         run_time = datetime.now(timezone.utc) + timedelta(minutes=1)
         scheduler.add_job(
@@ -624,7 +624,7 @@ def reject_request():
         rejection_data = {
            'ride_id': req.id,
             'driver_name': driver_rejecting.name if driver_rejecting else "A driver",
-            'driver_email': driver_rejecting.email, # <-- ADD THIS LINE
+            'driver_email': driver_rejecting.email, 
             'message': f"Your ride request was rejected by {driver_rejecting.name if driver_rejecting else 'a driver'}. Please find another."
           }
         socketio.emit('ride_rejected', rejection_data, room=user_to_notify_email)
