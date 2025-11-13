@@ -369,7 +369,16 @@ window.routeToService = function(markerId) {
          detailedError += "<br><pre style='font-size:0.8em; text-align:left; white-space:pre-wrap;word-break:break-all;'>" + errorObj.stack.substring(0,500) + "...</pre>"; 
     } else if (errorObj)
      { detailedError += "<br><pre style='font-size:0.8em; text-align:left; white-space:pre-wrap;word-break:break-all;'>" + JSON.stringify(errorObj, null, 2) + "</pre>"; } if (mapDiv) { mapDiv.innerHTML = `<p style="padding:20px; text-align:center; color:red; font-weight:bold; font-size:1.1em; background-color: #ffe0e0; border: 1px solid red;">MAP INIT ERROR:<br>${detailedError}</p>`;} console.error("MAP ERROR:", message, errorObj); }
-    function findClosestNodeKeyToLatLng(latlng, availableNodeCoords, routableGraph) { let closestKey = null; let minDist = Infinity; if (!availableNodeCoords || typeof availableNodeCoords !== 'object' || Object.keys(availableNodeCoords).length === 0) { console.warn("[findClosestNodeKeyToLatLng] availableNodeCoords data missing."); return null;} if (!routableGraph || typeof routableGraph !== 'object' || Object.keys(routableGraph).length === 0) { console.warn("[findClosestNodeKeyToLatLng] routableGraph data missing.");} for (const nodeKey in availableNodeCoords) { if (availableNodeCoords.hasOwnProperty(nodeKey)) { if (routableGraph && !routableGraph.hasOwnProperty(nodeKey)) continue; const nodeCoordArray = availableNodeCoords[nodeKey]; if(Array.isArray(nodeCoordArray) && nodeCoordArray.length === 2 && typeof nodeCoordArray[0] === 'number' && typeof nodeCoordArray[1] === 'number') { const nodeLatLng = L.latLng(nodeCoordArray[0], nodeCoordArray[1]); 
+    function findClosestNodeKeyToLatLng(latlng, availableNodeCoords, routableGraph)
+     { let closestKey = null; let minDist = Infinity; 
+        if (!availableNodeCoords || typeof availableNodeCoords !== 'object' || Object.keys(availableNodeCoords).length === 0) 
+        { console.warn("[findClosestNodeKeyToLatLng] availableNodeCoords data missing."); 
+        return null;} 
+        if (!routableGraph || typeof routableGraph !== 'object' || Object.keys(routableGraph).length === 0) 
+        { console.warn("[findClosestNodeKeyToLatLng] routableGraph data missing.");
+
+        } for (const nodeKey in availableNodeCoords) { if (availableNodeCoords.hasOwnProperty(nodeKey)) 
+            { if (routableGraph && !routableGraph.hasOwnProperty(nodeKey)) continue; const nodeCoordArray = availableNodeCoords[nodeKey]; if(Array.isArray(nodeCoordArray) && nodeCoordArray.length === 2 && typeof nodeCoordArray[0] === 'number' && typeof nodeCoordArray[1] === 'number') { const nodeLatLng = L.latLng(nodeCoordArray[0], nodeCoordArray[1]); 
     const dist = latlng.distanceTo(nodeLatLng); 
     if (dist < minDist) { minDist = dist; closestKey = nodeKey; }} }} 
     console.log("[findClosestNodeKeyToLatLng] Determined closest routable node:", closestKey);
@@ -789,8 +798,17 @@ socket.on('receive_chat_message', function(data)
     });
 
 
-    function clearMainAcceptedRoute() { if (mainAcceptedRouteControl) { map.removeControl(mainAcceptedRouteControl); mainAcceptedRouteControl = null; }}
-    function clearPreviewDijkstraPath() { if (previewDijkstraPathLayer) { map.removeLayer(previewDijkstraPathLayer); previewDijkstraPathLayer = null; } if (currentNearestDriverForConfirmation && allDriverMapMarkers[currentNearestDriverForConfirmation.email]) { let iconR = genericDriverIcon; if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' && currentRideStatusFromServer.driver_name === currentNearestDriverForConfirmation.name) iconR = enRouteDriverIcon; try{allDriverMapMarkers[currentNearestDriverForConfirmation.email].setIcon(iconR).setZIndexOffset(0);}catch(e){/*ignore if marker removed*/} } }
+    function clearMainAcceptedRoute()
+     { if (mainAcceptedRouteControl) 
+        { map.removeControl(mainAcceptedRouteControl);
+             mainAcceptedRouteControl = null; }}
+    function clearPreviewDijkstraPath() 
+    { if (previewDijkstraPathLayer) 
+        { map.removeLayer(previewDijkstraPathLayer); 
+            previewDijkstraPathLayer = null; } 
+            if (currentNearestDriverForConfirmation && allDriverMapMarkers[currentNearestDriverForConfirmation.email]) { let iconR = genericDriverIcon;
+                 if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' && currentRideStatusFromServer.driver_name === currentNearestDriverForConfirmation.name) iconR = enRouteDriverIcon;
+                  try{allDriverMapMarkers[currentNearestDriverForConfirmation.email].setIcon(iconR).setZIndexOffset(0);}catch(e){} } }
     function drawMainAcceptedRoute(usrLtLng, drvLtLng) { clearMainAcceptedRoute(); console.log("[UserDash] Drawing MAIN accepted route between User:", usrLtLng.toString(), "and Driver:", drvLtLng.toString()); mainAcceptedRouteControl = L.Routing.control({ waypoints: [usrLtLng, drvLtLng], routeWhileDragging: false, show: false, addWaypoints: false, lineOptions: { styles: [{color: 'blue', opacity: 0.9, weight: 6}] }, createMarker: ()=>null }).addTo(map); map.fitBounds(L.latLngBounds([usrLtLng, drvLtLng]), {padding: [50,50]}); }
 
     

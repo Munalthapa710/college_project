@@ -456,9 +456,7 @@ def find_nearest_driver_dijkstra():
        
      # For each driver, it calls your Dijkstra implementation
         # It passes the graph, the user's start node, and the driver's current node
-        
         # --- REDIRECTION TO dijkstra.py ---   
-    
         distance = dijkstra(graph, user_closest_node, driver.node)
         # --- END REDIRECTION ---
 
