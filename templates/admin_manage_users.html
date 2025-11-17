@@ -8,11 +8,12 @@
             <th style="padding: 10px;">Email</th>
             <th style="padding: 10px;">Phone</th>
             <th style="padding: 10px;">Last Known Lat/Lng</th>
+            <th style="padding: 10px;">Actions</th>
         </tr>
     </thead>
     <tbody>
     {% for user in users %}
-    <tr>
+    <tr id="user-row-{{ user.email.replace('@', '_').replace('.', '_') }}">
         <td style="padding: 10px;">{{ user.name }}</td>
         <td style="padding: 10px;">{{ user.email }}</td>
         <td style="padding: 10px;">{{ user.phone }}</td>
@@ -23,8 +24,50 @@
                 Not Set
             {% endif %}
         </td>
+        <td style="padding: 10px; text-align: center;">
+            <button class="btn-cancel" onclick="deleteUser('{{ user.email }}')">
+                Delete
+            </button>
+        </td>
     </tr>
     {% endfor %}
     </tbody>
 </table>
+{% endblock %}
+{% block scripts_extra %}
+<script>
+    function deleteUser(email) {
+        // Show a confirmation dialog.
+        if (!confirm(`Are you absolutely sure you want to PERMANENTLY DELETE the user '${email}'? This action cannot be undone.`)) {
+            return;
+        }
+
+        // Send a POST request to the new user delete endpoint.
+        fetch(`/admin/delete-user/${email}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // If deletion was successful on the server, remove the user's row from the HTML table.
+                const rowId = `user-row-${email.replace('@', '_').replace('.', '_')}`;
+                const row = document.getElementById(rowId);
+                if (row) {
+                    row.style.transition = 'opacity 0.5s ease';
+                    row.style.opacity = '0';
+                    setTimeout(() => row.remove(), 500);
+                }
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An unexpected error occurred during the deletion process.');
+        });
+    }
+</script>
 {% endblock %}

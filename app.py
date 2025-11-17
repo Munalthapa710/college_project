@@ -1028,7 +1028,34 @@ def manage_drivers():
     all_drivers = Driver.query.order_by(Driver.is_approved.asc()).all()
     response = make_response(render_template('admin_manage_drivers.html', admin=admin, drivers=all_drivers))
     return add_no_cache_to_response(response)
+@app.route('/admin/delete-user/<user_email>', methods=['POST'])
+@login_required_admin
+def delete_user(user_email):
+    # Find the user to be deleted from the User table.
+    user = User.query.get(user_email)
+    
+    if not user:
+        return jsonify({'success': False, 'message': 'User not found.'}), 404
+    
+    user_name = user.name # Store the name for the flash message.
+    
+    try:
+        # Delete the user from the database.
+        db.session.delete(user)
+        
+        # Anonymize their ride requests to preserve history.
+        RideRequest.query.filter_by(user_email=user_email).update({"user_email": "deleted_user@evts.com"})
+        
+        db.session.commit()
+        
+        flash(f"User '{user_name}' and their associated ride records have been permanently deleted.", "success")
+        return jsonify({'success': True, 'message': f"User {user_name} has been deleted."})
 
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error deleting user {user_email}: {e}")
+        return jsonify({'success': False, 'message': 'An error occurred while trying to delete the user.'}), 500
+    
 @app.route('/admin/delete-driver/<driver_email>', methods=['POST'])
 @login_required_admin
 def delete_driver(driver_email):
