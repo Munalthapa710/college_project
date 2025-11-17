@@ -135,45 +135,56 @@ def add_no_cache_to_response(response):
     response.headers["Expires"] = "0"
     return response
 
-def check_and_reroute_ride(ride_id, user_email):
+def check_and_reroute_ride(ride_id, user_email, excluded_drivers=None):
     """
     A background job to check a ride request's status after a timeout.
-    If it's still pending, it finds the next nearest driver and re-assigns.
+    If it's still pending, it finds the next nearest driver and re-assigns,
+    maintaining a list of drivers who have already timed out.
     """
-    print(f"[JOB] Running check for ride_id: {ride_id}")
-    with app.app_context(): # IMPORTANT: Jobs run outside Flask's context
-        # Find the original request
+    # Initialize the exclusion list if this is the first timeout in a chain.
+    if excluded_drivers is None:
+        excluded_drivers = []
+        
+    print(f"[JOB] Running check for ride_id: {ride_id}. Drivers already excluded: {excluded_drivers}")
+
+    with app.app_context(): # Jobs run outside Flask's normal context, so this is required.
+        # Find the specific ride request that this job is for.
         original_request = db.session.get(RideRequest, ride_id)
 
-        # 1. Check if the ride is still pending
+        # 1. First, check if the ride is still 'Pending'. If it was accepted, rejected,
+        #    or cancelled, the job has nothing to do and should simply finish.
         if not original_request or original_request.status != 'Pending':
             print(f"[JOB] Ride {ride_id} is no longer pending. Status: {original_request.status if original_request else 'Not Found'}. Job finished.")
             return
 
-        print(f"[JOB] Ride {ride_id} timed out. Finding next driver.")
-        # 2. Mark the original request as timed out
-        original_request.status = 'timed_out'
+        print(f"[JOB] Ride {ride_id} timed out. Adding {original_request.driver_email} to exclusion list.")
         
-        # 3. Find the next nearest driver, EXCLUDING the one who just timed out
+        # 2. Mark the current request as 'timed_out' and add its driver to our growing list of exclusions.
+        original_request.status = 'timed_out'
+        if original_request.driver_email not in excluded_drivers:
+            excluded_drivers.append(original_request.driver_email)
+        
+        # 3. Find the next nearest driver, ensuring we use the CUMULATIVE exclusion list.
         user = User.query.get(user_email)
         if not user or user.latitude is None:
             print("[JOB] User or user location not found. Cannot find next driver.")
-            db.session.commit()
+            db.session.commit() # Commit the 'timed_out' status before exiting.
             return
             
-        
+        # The database query now uses the full list of excluded drivers.
         all_available_drivers = Driver.query.filter(
             Driver.is_approved == True,
             Driver.node.isnot(None),
-            Driver.email != original_request.driver_email 
+            Driver.email.notin_(excluded_drivers) # Use .notin_ with the entire list.
         ).all()
 
         if not all_available_drivers:
-            print("[JOB] No other drivers available.")
+            print("[JOB] No other drivers are available after applying exclusions.")
             socketio.emit('ride_timeout_no_drivers', {'message': 'Your request timed out and no other drivers are available.'}, room=user_email)
             db.session.commit()
             return
 
+        # Find the user's closest node to run Dijkstra from.
         user_latlng = (user.latitude, user.longitude)
         closest_node_key = None
         min_dist = float('inf')
@@ -184,11 +195,11 @@ def check_and_reroute_ride(ride_id, user_email):
                 closest_node_key = node
         
         if not closest_node_key:
-            print("[JOB] Could not determine user's closest node.")
+            print("[JOB] Could not determine user's closest graph node.")
             db.session.commit()
             return
 
-        # Finding next nearest driver using Dijkstra
+        # Run Dijkstra's for all remaining available drivers to find the best one.
         next_driver_obj = None
         min_path_dist = float('inf')
         for driver in all_available_drivers:
@@ -199,12 +210,12 @@ def check_and_reroute_ride(ride_id, user_email):
                     next_driver_obj = driver
 
         if not next_driver_obj:
-            print("[JOB] Found other drivers, but none are reachable on the network graph.")
+            print("[JOB] Other drivers were found, but none are reachable on the network graph.")
             socketio.emit('ride_timeout_no_drivers', {'message': 'Your request timed out and no other reachable drivers were found.'}, room=user_email)
             db.session.commit()
             return
 
-        # 4. Create a new ride request for the next driver
+        # 4. A new best driver was found. Create a new ride request for them.
         print(f"[JOB] Re-assigning ride to next nearest driver: {next_driver_obj.name} ({next_driver_obj.email})")
         new_ride = RideRequest(
             user_email=user_email,
@@ -214,21 +225,28 @@ def check_and_reroute_ride(ride_id, user_email):
             status='Pending'
         )
         db.session.add(new_ride)
-        db.session.commit() # Commit changes (timed_out status and new ride)
+        db.session.commit() # Saves both the 'timed_out' old request and the new 'Pending' one.
 
-        # 5. Schedule a check for this NEW ride request
-        run_time = datetime.now(timezone.utc) + timedelta(minutes=1)
-        scheduler.add_job(check_and_reroute_ride, 'date', run_date=run_time, args=[new_ride.id, user_email])
-        print(f"[JOB] Scheduled next check for new ride {new_ride.id} at {run_time.isoformat()}")
+        # 5. (ap--scheduler)Schedule a check for this NEW ride, crucially PASSING THE UPDATED EXCLUSION LIST.
+        run_time = datetime.now(timezone.utc) + timedelta(seconds=30) # Or whatever your desired timeout is.
+        
+        scheduler.add_job(
+            check_and_reroute_ride, 
+            'date', 
+            run_date=run_time, 
+            # Pass the updated exclusion list to the next job in the chain.
+            args=[new_ride.id, user_email, excluded_drivers]
+        )
+        print(f"[JOB] Scheduled next check for new ride {new_ride.id} at {run_time.isoformat()} with exclusions: {excluded_drivers}")
 
-        # 6. Notify the user and the NEW driver via WebSockets
-        # Notify user of the new suggestion
+        # 6. Notify the user of the successful reroute and notify the NEW driver of their request.
+        # Notify user of the new suggestion.
         socketio.emit('new_suggestion', {
-            'message': f"Request to {original_request.driver_email} timed out. Now requesting from next nearest driver: {next_driver_obj.name}.",
+            'message': f"Request to the previous driver timed out. Now requesting from next nearest driver: {next_driver_obj.name}.",
             'driver_name': next_driver_obj.name
         }, room=user_email)
         
-        # Notify the new driver of their new request
+        # Notify the new driver of their new request.
         new_driver_data = {
             'id': new_ride.id,
             'user_name': user.name,
@@ -239,7 +257,6 @@ def check_and_reroute_ride(ride_id, user_email):
             'status': new_ride.status
         }
         socketio.emit('new_ride_request', new_driver_data, room=next_driver_obj.email)
-
 
 # ----------------------------Routes start from here------------------------------------------------
 @app.route('/')
@@ -1011,6 +1028,37 @@ def manage_drivers():
     all_drivers = Driver.query.order_by(Driver.is_approved.asc()).all()
     response = make_response(render_template('admin_manage_drivers.html', admin=admin, drivers=all_drivers))
     return add_no_cache_to_response(response)
+
+@app.route('/admin/delete-driver/<driver_email>', methods=['POST'])
+@login_required_admin
+def delete_driver(driver_email):
+    # Find the driver to be deleted.
+    driver = Driver.query.get(driver_email)
+    
+    if not driver:
+        # If the driver doesn't exist, return an error.
+        return jsonify({'success': False, 'message': 'Driver not found.'}), 404
+    
+    driver_name = driver.name # Store the name for the flash message before deleting.
+    
+    try:
+        # This is where the driver is deleted from the database.
+        db.session.delete(driver)
+        
+        # We also need to handle any rides associated with this driver.
+        # A simple approach is to anonymize them.
+        # A more complex approach could be to delete them, but that loses history.
+        RideRequest.query.filter_by(driver_email=driver_email).update({"driver_email": "deleted_driver@evts.com"})
+
+        db.session.commit() # Commit the changes to the database.
+        
+        flash(f"Driver '{driver_name}' and their associated ride records have been permanently deleted.", "success")
+        return jsonify({'success': True, 'message': f"Driver {driver_name} has been deleted."})
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error deleting driver {driver_email}: {e}")
+        return jsonify({'success': False, 'message': 'An error occurred while trying to delete the driver.'}), 500
 
 @app.route('/admin/ride-history')
 @login_required_admin

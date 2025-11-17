@@ -742,12 +742,13 @@ socket.on('ride_timeout_no_drivers', function(data) {
  });
              
  socket.on('ride_rejected', function(data) {
-     console.log('[USER DASH] Ride rejected, updating UI dynamically:', data);
+     console.log('[USER DASH] Ride rejected, updating UI dynamically:', data.driver_email);
      alert(data.message);
  
      // add the rejected driver to our exclusion list
      if (data.driver_email && !excludedDriverEmails.includes(data.driver_email)) {
          excludedDriverEmails.push(data.driver_email);
+         console.log("REJECTION: exclusion list is now:", JSON.stringify(excludedDriverEmails));
      }
  
      // update the status panel to show the rejection and the "Find Another Driver" button
@@ -816,6 +817,8 @@ socket.on('receive_chat_message', function(data)
      if (isNewSearch) {
         console.log("Starting a new search, clearing exclusion list.");
         excludedDriverEmails = [];
+    }else{
+        console.log("ACTION: Finding ANOTHER driver. Preserving exclusion list.");
     }
     if (currentUserLatitude === null || currentUserLongitude === null) {
         alert("Please set your location on the map first.");
@@ -843,7 +846,7 @@ socket.on('receive_chat_message', function(data)
     };
 
     console.log("Searching for nearest driver with payload:", payload);
-
+    console.log("API CALL: Sending request to server with payload:", JSON.stringify(payload));
 
     fetch('/find-nearest-driver-dijkstra', {
             method: 'POST',
