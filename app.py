@@ -327,7 +327,7 @@ def register():
                 if Driver.query.filter_by(email=email).first():
                     errors.append(f"A driver account with the email '{email}' already exists.")
             else: 
-                if User.query.filter_by(email=email).first():
+                if User.query.filter_by(email=email).first(): 
                     errors.append(f"A user account with the email '{email}' already exists.")
         
         if errors:
@@ -388,7 +388,7 @@ def login():
                 return redirect(url_for('driver_home'))
             
         elif role == 'user':
-             user = User.query.filter_by(email=email).first()
+             user = User.query.filter_by(email=email).first() #sqlinjection
              if user and check_password_hash(user.password, password): 
                 session['user'] = user.email
                 flash(f'Welcome', 'success')
@@ -520,7 +520,7 @@ def request_ride():
     user_email = session['user']
 
     RideRequest.query.filter(
-        RideRequest.user_email == user_email, 
+        RideRequest.user_email == user_email,  #sqlinjection
         RideRequest.status.in_(['Pending', 'accepted'])
     ).update({'status': 'superseded'}, synchronize_session='fetch')
    
@@ -1128,6 +1128,7 @@ def on_join(data): # 'data' will be the JSON object sent by the client
 def handle_disconnect():
     # This event fires when a client disconnects.
     print(f"Client disconnected: {request.sid}")
+    
 @socketio.on('send_chat_message')
 def handle_chat_message(data):
     """Handle receiving a chat message and relaying it."""

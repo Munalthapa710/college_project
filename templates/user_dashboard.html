@@ -810,7 +810,14 @@ socket.on('receive_chat_message', function(data)
             if (currentNearestDriverForConfirmation && allDriverMapMarkers[currentNearestDriverForConfirmation.email]) { let iconR = genericDriverIcon;
                  if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' && currentRideStatusFromServer.driver_name === currentNearestDriverForConfirmation.name) iconR = enRouteDriverIcon;
                   try{allDriverMapMarkers[currentNearestDriverForConfirmation.email].setIcon(iconR).setZIndexOffset(0);}catch(e){} } }
-    function drawMainAcceptedRoute(usrLtLng, drvLtLng) { clearMainAcceptedRoute(); console.log("[UserDash] Drawing MAIN accepted route between User:", usrLtLng.toString(), "and Driver:", drvLtLng.toString()); mainAcceptedRouteControl = L.Routing.control({ waypoints: [usrLtLng, drvLtLng], routeWhileDragging: false, show: false, addWaypoints: false, lineOptions: { styles: [{color: 'blue', opacity: 0.9, weight: 6}] }, createMarker: ()=>null }).addTo(map); map.fitBounds(L.latLngBounds([usrLtLng, drvLtLng]), {padding: [50,50]}); }
+    function drawMainAcceptedRoute(usrLtLng, drvLtLng) { clearMainAcceptedRoute(); console.log("[UserDash] Drawing MAIN accepted route between User:", usrLtLng.toString(), "and Driver:", drvLtLng.toString()); 
+// osrm for routing
+    mainAcceptedRouteControl = L.Routing.control(
+        { waypoints: [usrLtLng, drvLtLng], routeWhileDragging: false, show: false, addWaypoints: false, 
+            lineOptions: { styles: [{color: 'blue', opacity: 0.9, weight: 6}] }, 
+            createMarker: ()=>null }).addTo(map); 
+            
+            map.fitBounds(L.latLngBounds([usrLtLng, drvLtLng]), {padding: [50,50]}); }
 
     
  window.findNearestAndShowPreview = function (isNewSearch) {
