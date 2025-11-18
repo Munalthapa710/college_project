@@ -114,7 +114,7 @@ Follow these instructions to get a local copy of the project up and running for 
 
 ### Using the System
 
-- **Admin Login:** Use the credentials set up in the previous step (default: `admin@evts.com` / `***********`) and select the "Admin" role.
+- **Admin Login:** Use the credentials set up in the previous step (default: `admin@gmail.com` / `***********`) and select the "Admin" role.
 - **Create a Driver:** Register a new account with the "Driver" role. Then, log in as the admin and approve the new driver from the admin dashboard.
 - **Create a User:** Register a new account with the "User" role.
 - **Test the Flow:** Log in as the user, go to the dashboard, and request a ride. Log in as the approved driver in a separate browser window to see the request come in live.

@@ -1044,7 +1044,7 @@ def delete_user(user_email):
         db.session.delete(user)
         
         # Anonymize their ride requests to preserve history.
-        RideRequest.query.filter_by(user_email=user_email).update({"user_email": "deleted_user@evts.com"})
+        RideRequest.query.filter_by(user_email=user_email).update({"user_email": "deleted_user@gmail.com"})
         
         db.session.commit()
         
@@ -1075,7 +1075,7 @@ def delete_driver(driver_email):
         # We also need to handle any rides associated with this driver.
         # A simple approach is to anonymize them.
         # A more complex approach could be to delete them, but that loses history.
-        RideRequest.query.filter_by(driver_email=driver_email).update({"driver_email": "deleted_driver@evts.com"})
+        RideRequest.query.filter_by(driver_email=driver_email).update({"driver_email": "deleted_driver@gmail.com"})
 
         db.session.commit() # Commit the changes to the database.
         
@@ -1128,7 +1128,7 @@ def on_join(data): # 'data' will be the JSON object sent by the client
 def handle_disconnect():
     # This event fires when a client disconnects.
     print(f"Client disconnected: {request.sid}")
-    
+
 @socketio.on('send_chat_message')
 def handle_chat_message(data):
     """Handle receiving a chat message and relaying it."""
