@@ -1,5 +1,6 @@
 {% extends 'user_base.html' %}
  {% block head_extra %}
+ <!--mapimplement -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -115,7 +116,7 @@
     <small id="userClosestNodeSubDisplay" style="display: none; color: #555; min-height: 1em;"></small>
     <span id="locationSetMessage" style="color: green; margin-left: 10px; font-weight: bold;"></span>
 </p>
-
+<!--mapcontent-->
 <div class="map-wrapper-fullwidth">
     <div class="map-container-inner">
         <div id="map"><p style="text-align: center; padding-top: 50px; color: #555;" id="mapLoadingText">Loading map...</p></div>
@@ -580,7 +581,7 @@ window.routeToService = function(markerId) {
 
            map = L.map('map').setView(mapInitialView, 14);
           console.log("[USER DASH] Leaflet map object IS CREATED:", map);
-
+// add map in boxxxx
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OSM' })
               .on('tileerror', function(e){ console.error("[USER DASH] TileLayer Error:", e); displayErrorOnMapContainer("Map tiles failed to load. Check internet connection or tile server configuration."); })
               .addTo(map);
@@ -593,11 +594,14 @@ window.routeToService = function(markerId) {
               userMarkerInitialLatLng = fallbackLatLng;
           }
           console.log("[USER DASH] Adding userLiveMarker at:", userMarkerInitialLatLng.toString());
+          // 111initmapicon
           userLiveMarker = L.marker(userMarkerInitialLatLng, { icon: userIcon, draggable: true })
             .addTo(map).bindPopup(currentUserLatitude !== null ? `Your Location: (${currentUserLatitude.toFixed(6)}, ${currentUserLongitude.toFixed(6)})` : "Click map to set your location").openPopup();
-          userLiveMarker.on('dragend',function(e){
+        //222draganddrop
+            userLiveMarker.on('dragend',function(e){
              updateUserPreciseLocationAndSave(e.target.getLatLng()); 
             });
+            //3333 move map
           map.on("click", handleMapClickToSetLocation);
           console.log("[USER DASH] userLiveMarker and event listeners added.");
 
@@ -810,8 +814,9 @@ socket.on('receive_chat_message', function(data)
             if (currentNearestDriverForConfirmation && allDriverMapMarkers[currentNearestDriverForConfirmation.email]) { let iconR = genericDriverIcon;
                  if (currentRideStatusFromServer && currentRideStatusFromServer.type === 'accepted' && currentRideStatusFromServer.driver_name === currentNearestDriverForConfirmation.name) iconR = enRouteDriverIcon;
                   try{allDriverMapMarkers[currentNearestDriverForConfirmation.email].setIcon(iconR).setZIndexOffset(0);}catch(e){} } }
+    //444drawingroutes              
     function drawMainAcceptedRoute(usrLtLng, drvLtLng) { clearMainAcceptedRoute(); console.log("[UserDash] Drawing MAIN accepted route between User:", usrLtLng.toString(), "and Driver:", drvLtLng.toString()); 
-// osrm for routing
+
     mainAcceptedRouteControl = L.Routing.control(
         { waypoints: [usrLtLng, drvLtLng], routeWhileDragging: false, show: false, addWaypoints: false, 
             lineOptions: { styles: [{color: 'blue', opacity: 0.9, weight: 6}] }, 
